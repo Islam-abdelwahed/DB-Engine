@@ -5,7 +5,9 @@
 #include <filesystem> // C++17 for directory iteration
 
 void Database::createTable(const std::string& name, const std::vector<Column>& cols) {
-    if (tables.find(name) != tables.end()) return;
+    if (tables.find(name) != tables.end()) {
+        throw std::runtime_error("Table already exists: " + name);
+    }
     tables.emplace(name, Table(name, cols));
 }
 
