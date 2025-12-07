@@ -203,14 +203,14 @@ Query* Parser::parse(const std::string& sqlText) {
                 std::string itemUpper = toUpper(item);
                 if (itemUpper.find("DESC") != std::string::npos) {
                     rule.ascending = false;
-                    rule.columnName = trim(item.substr(0, item.find_last_of(' ')));
+                    rule.column = trim(item.substr(0, item.find_last_of(' ')));
                 } else {
                     rule.ascending = true;
                     // Remove ASC if present
                     if (itemUpper.find("ASC") != std::string::npos) {
-                        rule.columnName = trim(item.substr(0, item.find_last_of(' ')));
+                        rule.column = trim(item.substr(0, item.find_last_of(' ')));
                     } else {
-                        rule.columnName = trim(item);
+                        rule.column = trim(item);
                     }
                 }
                 q->orderBy.push_back(rule);

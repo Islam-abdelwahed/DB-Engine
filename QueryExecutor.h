@@ -13,13 +13,14 @@
 using OutputCallback = std::function<void(const std::string&)>;
 using ErrorCallback = std::function<void(const std::string&)>;
 using ResultTableCallback = std::function<void(const std::vector<Column>&, const std::vector<Row>&)>;
+using TreeRefreshCallback = std::function<void()>;
 
 class QueryExecutor {
 public:
     void setOutputCallback(OutputCallback cb) { output = cb; }
     void setErrorCallback(ErrorCallback cb) { error = cb; }
     void setResultTableCallback(ResultTableCallback cb) { resultTable = cb; }
-
+    void setTreeRefreshCallback(TreeRefreshCallback cb){tree =cb;};
     void execute(Query* q, Database& db);
 
 private:
@@ -32,5 +33,6 @@ private:
 
     OutputCallback output = [](const std::string& s) {};
     ErrorCallback error = [](const std::string& s) {};
+    TreeRefreshCallback tree = []() {};
     ResultTableCallback resultTable = [](const std::vector<Column>&, const std::vector<Row>&) {};
 };

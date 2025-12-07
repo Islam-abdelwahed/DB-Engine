@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>853</width>
-    <height>592</height>
+    <height>632</height>
    </rect>
   </property>
   <property name="palette">
@@ -976,6 +976,9 @@
           <horstretch>1</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="windowTitle">
+         <string>Object Explorer</string>
         </property>
         <widget class="QWidget" name="dockWidgetContents_12">
          <layout class="QHBoxLayout" name="horizontalLayout_5">

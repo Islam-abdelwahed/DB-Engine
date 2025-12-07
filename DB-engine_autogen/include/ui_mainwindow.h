@@ -79,7 +79,7 @@ public:
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(853, 592);
+        MainWindow->resize(853, 632);
         QPalette palette;
         QBrush brush(QColor(0, 0, 0, 255));
         brush.setStyle(Qt::BrushStyle::SolidPattern);
@@ -462,6 +462,7 @@ public:
 #endif // QT_CONFIG(shortcut)
         actionNew_Query->setText(QCoreApplication::translate("MainWindow", "New Query", nullptr));
         actionOpen->setText(QCoreApplication::translate("MainWindow", "Open", nullptr));
+        dockWidget->setWindowTitle(QCoreApplication::translate("MainWindow", "Object Explorer", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_3), QCoreApplication::translate("MainWindow", "Tab 1", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_4), QCoreApplication::translate("MainWindow", "Tab 2", nullptr));
         bottomTabs->setTabText(bottomTabs->indexOf(error_tab), QCoreApplication::translate("MainWindow", "Error List", nullptr));

@@ -160,7 +160,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         std::vector<size_t> orderByIndices;
         for (const auto& rule : q->orderBy) {
             for (size_t i = 0; i < allColumns.size(); ++i) {
-                if (allColumns[i].name == rule.columnName) {
+                if (allColumns[i].name == rule.column) {
                     orderByIndices.push_back(i);
                     break;
                 }
@@ -276,6 +276,7 @@ void QueryExecutor::executeCreateTable(CreateTableQuery* q, Database& db) {
 
     db.createTable(q->tableName, q->columns);
     output("Table '" + q->tableName + "' created successfully");
+    tree();
 }
 
 void QueryExecutor::executeDropTable(DropTableQuery* q, Database& db) {
@@ -287,4 +288,5 @@ void QueryExecutor::executeDropTable(DropTableQuery* q, Database& db) {
 
     db.dropTable(q->tableName);
     output("Table '" + q->tableName + "' dropped successfully");
+    tree();
 }

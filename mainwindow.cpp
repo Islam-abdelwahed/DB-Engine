@@ -7,10 +7,7 @@
 #include <QStandardItem>
 
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
-{
+MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
 
     // Load database on startup
@@ -32,10 +29,11 @@ MainWindow::MainWindow(QWidget *parent)
     executor.setResultTableCallback([this](const std::vector<Column>& cols, const std::vector<Row>& rows) {
         populateResultsTable(cols, rows);
     });
-
-    // // Connect actions
+    executor.setTreeRefreshCallback([this](){
+        ui->tables_tree->update();
+    });
+    // Connect actions
     connect(ui->actionExecute, &QAction::triggered, this, &MainWindow::on_actionExecute_triggered);
-    // Assuming there's an actionSave for saving queries or something, connect if needed
 }
 
 MainWindow::~MainWindow() {
@@ -105,28 +103,30 @@ void MainWindow::executeSQL(const QString& sql) {
 
         printOutput(""); // newline
     }
-    // updateExplorerTree(); // Refresh explorer after changes
+    updateExplorerTree(); // Refresh explorer after changes
 }
 
 void MainWindow::updateExplorerTree() {
     auto model = new QStandardItemModel();
     model->setHorizontalHeaderLabels({"Tables"});
-
+    QStandardItem *rootItem = new QStandardItem("Database");
+    rootItem->setEditable(false);
     for (const auto& name : database.getTableNames()) {
         QStandardItem* parent = new QStandardItem(QString::fromStdString(name));
 
         // Example child
-        parent->appendRow(new QStandardItem("columns..."));
+        // parent->appendRow(new QStandardItem("columns..."));
 
-        model->appendRow(parent);
+        rootItem->appendRow(parent);
     }
-
+    model->appendRow(rootItem);
     ui->tables_tree->setModel(model);
 
     // Enable tree decorations
     ui->tables_tree->setRootIsDecorated(true);
     ui->tables_tree->setItemsExpandable(true);
     ui->tables_tree->setExpandsOnDoubleClick(true);
+     ui->tables_tree->expandAll();
 }
 
 void MainWindow::printOutput(const QString& text) {
