@@ -4,6 +4,8 @@
 #include "InsertQuery.h"
 #include "UpdateQuery.h"
 #include "DeleteQuery.h"
+#include "CreateTableQuery.h"
+#include "DropTableQuery.h"
 #include <sstream>
 #include <algorithm>
 #include <cctype>
@@ -149,6 +151,56 @@ Query* Parser::parse(const std::string& sqlText) {
             q->where = parseCondition(wherePart);
         } else {
             q->tableName = trim(sqlText.substr(fromPos + 4));
+        }
+
+        return q;
+    } else if (upperQuery.find("CREATE") == 0 && upperQuery.find("TABLE") != std::string::npos) {
+        CreateTableQuery* q = new CreateTableQuery();
+        size_t tablePos = upperQuery.find("TABLE");
+        size_t openParen = sqlText.find('(', tablePos);
+        size_t closeParen = sqlText.rfind(')');
+        
+        if (openParen == std::string::npos || closeParen == std::string::npos) {
+            delete q;
+            return nullptr;
+        }
+
+        q->tableName = trim(sqlText.substr(tablePos + 5, openParen - tablePos - 5));
+        std::string colsDef = sqlText.substr(openParen + 1, closeParen - openParen - 1);
+
+        // Parse columns: column_name TYPE, column_name TYPE, ...
+        auto defs = split(colsDef, ',');
+        for (auto& def : defs) {
+            auto parts = split(trim(def), ' ');
+            if (parts.size() >= 2) {
+                DataType type = DataType::STRING;
+                std::string typeStr = toUpper(parts[1]);
+                if (typeStr.find("INT") != std::string::npos) type = DataType::INTEGER;
+                else if (typeStr.find("FLOAT") != std::string::npos || typeStr.find("DOUBLE") != std::string::npos) type = DataType::FLOAT;
+                else if (typeStr.find("BOOL") != std::string::npos) type = DataType::BOOLEAN;
+                q->columns.emplace_back(parts[0], type);
+            }
+        }
+
+        if (q->columns.empty()) {
+            delete q;
+            return nullptr;
+        }
+
+        return q;
+    } else if (upperQuery.find("DROP") == 0 && upperQuery.find("TABLE") != std::string::npos) {
+        DropTableQuery* q = new DropTableQuery();
+        size_t tablePos = upperQuery.find("TABLE");
+        if (tablePos == std::string::npos) {
+            delete q;
+            return nullptr;
+        }
+
+        q->tableName = trim(sqlText.substr(tablePos + 5));
+        
+        if (q->tableName.empty()) {
+            delete q;
+            return nullptr;
         }
 
         return q;
