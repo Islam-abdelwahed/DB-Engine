@@ -377,8 +377,8 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
     }
     
     // Save to CSV immediately
-    std::string csvPath = "data/" + q->tableName + ".csv";
-    table->saveToCSV(csvPath);
+    // std::string csvPath = "data/" + q->tableName + ".csv";
+    // table->saveToCSV(csvPath);
     
     output("1 row inserted");
 }

@@ -9,6 +9,10 @@
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
+    this->showMaximized();
+    QMenu* viewMenu = ui->menuView;
+    viewMenu->addAction(ui->dockWidget->toggleViewAction());
+    viewMenu->addAction(ui->dockWidget_2->toggleViewAction());
 
     // Load database on startup
     database = Database("data");
@@ -32,9 +36,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     executor.setTreeRefreshCallback([this](){
         ui->tables_tree->update();
     });
-    // Connect actions
-    connect(ui->actionExecute, &QAction::triggered, this, &MainWindow::on_actionExecute_triggered);
-}
+    }
 
 MainWindow::~MainWindow() {
     database.saveAllTables();
@@ -45,7 +47,11 @@ void MainWindow::on_actionExecute_triggered() {
     ui->resultText->clear();
     QString sql = ui->queryText->toPlainText();
     executeSQL(sql);
-    // ui->queryEditor->clear();
+}
+
+void MainWindow::on_actionSave_triggered() {
+    database.saveAllTables();
+
 }
 
 void MainWindow::executeSQL(const QString& sql) {
@@ -139,7 +145,7 @@ void MainWindow::printError(const QString& error) {
     ui->errorText->append("<span style='color: red;'><b>Error:</b> " + error.toHtmlEscaped() + "</span>");
     QScrollBar *bar = ui->errorText->verticalScrollBar();
     ui->bottomTabs->setCurrentWidget(ui->error_tab);
-    ui->errorText->setFocus();
+    // ui->errorText->setFocus();
     bar->setValue(bar->maximum());
 }
 

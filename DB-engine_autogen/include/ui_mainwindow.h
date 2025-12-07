@@ -39,6 +39,8 @@ public:
     QAction *actionSave;
     QAction *actionNew_Query;
     QAction *actionOpen;
+    QAction *actionObject_Explorer;
+    QAction *actionOutput_Window;
     QWidget *centralwidget;
     QVBoxLayout *verticalLayout_3;
     QHBoxLayout *horizontalLayout_4;
@@ -177,13 +179,18 @@ public:
         actionExecute->setMenuRole(QAction::MenuRole::NoRole);
         actionSave = new QAction(MainWindow);
         actionSave->setObjectName("actionSave");
-        QIcon icon1(QIcon::fromTheme(QIcon::ThemeIcon::DocumentSave));
+        QIcon icon1;
+        icon1.addFile(QString::fromUtf8("save.png"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         actionSave->setIcon(icon1);
         actionSave->setMenuRole(QAction::MenuRole::NoRole);
         actionNew_Query = new QAction(MainWindow);
         actionNew_Query->setObjectName("actionNew_Query");
         actionOpen = new QAction(MainWindow);
         actionOpen->setObjectName("actionOpen");
+        actionObject_Explorer = new QAction(MainWindow);
+        actionObject_Explorer->setObjectName("actionObject_Explorer");
+        actionOutput_Window = new QAction(MainWindow);
+        actionOutput_Window->setObjectName("actionOutput_Window");
         centralwidget = new QWidget(MainWindow);
         centralwidget->setObjectName("centralwidget");
         centralwidget->setEnabled(true);
@@ -263,14 +270,17 @@ public:
         verticalLayout_3 = new QVBoxLayout(centralwidget);
         verticalLayout_3->setObjectName("verticalLayout_3");
         horizontalLayout_4 = new QHBoxLayout();
+        horizontalLayout_4->setSpacing(5);
         horizontalLayout_4->setObjectName("horizontalLayout_4");
         dockWidget = new QDockWidget(centralwidget);
         dockWidget->setObjectName("dockWidget");
-        QSizePolicy sizePolicy1(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
+        QSizePolicy sizePolicy1(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Preferred);
         sizePolicy1.setHorizontalStretch(1);
         sizePolicy1.setVerticalStretch(0);
         sizePolicy1.setHeightForWidth(dockWidget->sizePolicy().hasHeightForWidth());
         dockWidget->setSizePolicy(sizePolicy1);
+        dockWidget->setAutoFillBackground(false);
+        dockWidget->setFloating(false);
         dockWidgetContents_12 = new QWidget();
         dockWidgetContents_12->setObjectName("dockWidgetContents_12");
         horizontalLayout_5 = new QHBoxLayout(dockWidgetContents_12);
@@ -350,6 +360,7 @@ public:
         verticalLayout_2->setContentsMargins(0, 0, 0, 0);
         errorText = new QTextEdit(error_tab);
         errorText->setObjectName("errorText");
+        errorText->setReadOnly(true);
 
         verticalLayout_2->addWidget(errorText);
 
@@ -362,6 +373,7 @@ public:
         verticalLayout_6->setContentsMargins(0, 0, 0, 0);
         outputText = new QTextEdit(output_tab);
         outputText->setObjectName("outputText");
+        outputText->setReadOnly(true);
 
         verticalLayout_6->addWidget(outputText);
 
@@ -386,7 +398,7 @@ public:
 
         verticalLayout->addWidget(dockWidget_2);
 
-        verticalLayout->setStretch(0, 1);
+        verticalLayout->setStretch(0, 2);
         verticalLayout->setStretch(2, 1);
 
         horizontalLayout_4->addLayout(verticalLayout);
@@ -434,7 +446,7 @@ public:
         retranslateUi(MainWindow);
 
         tabWidget->setCurrentIndex(0);
-        bottomTabs->setCurrentIndex(2);
+        bottomTabs->setCurrentIndex(1);
 
 
         QMetaObject::connectSlotsByName(MainWindow);
@@ -462,6 +474,8 @@ public:
 #endif // QT_CONFIG(shortcut)
         actionNew_Query->setText(QCoreApplication::translate("MainWindow", "New Query", nullptr));
         actionOpen->setText(QCoreApplication::translate("MainWindow", "Open", nullptr));
+        actionObject_Explorer->setText(QCoreApplication::translate("MainWindow", "Object Explorer", nullptr));
+        actionOutput_Window->setText(QCoreApplication::translate("MainWindow", "Output Window", nullptr));
         dockWidget->setWindowTitle(QCoreApplication::translate("MainWindow", "Object Explorer", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_3), QCoreApplication::translate("MainWindow", "Tab 1", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_4), QCoreApplication::translate("MainWindow", "Tab 2", nullptr));

@@ -17,6 +17,7 @@ public:
 
 private slots:
     void on_actionExecute_triggered();
+        void on_actionSave_triggered();
     // void on_clearOutputButton_clicked();
     // void on_inputReturnPressed();
 
