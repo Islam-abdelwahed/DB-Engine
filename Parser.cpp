@@ -42,6 +42,30 @@ std::string stripQuotes(std::string value) {
     return value;
 }
 
+// Validate SQL identifier (table/column name)
+bool isValidIdentifier(const std::string& name) {
+    if (name.empty()) return false;
+    
+    // Must start with letter or underscore
+    if (!std::isalpha(name[0]) && name[0] != '_') return false;
+    
+    // Rest must be alphanumeric or underscore
+    for (size_t i = 1; i < name.length(); ++i) {
+        if (!std::isalnum(name[i]) && name[i] != '_') return false;
+    }
+    
+    return true;
+}
+
+// Check if keyword has proper spacing (next char must be whitespace)
+bool hasProperSpacing(const std::string& upperQuery, const std::string& keyword, size_t keywordPos) {
+    size_t endPos = keywordPos + keyword.length();
+    if (endPos >= upperQuery.length()) return true; // End of query is OK
+    
+    char nextChar = upperQuery[endPos];
+    return std::isspace(nextChar) || nextChar == '(' || nextChar == ';';
+}
+
 // Parse condition from WHERE clause (simple column op value)
 Condition parseCondition(const std::string& wherePart) {
     Condition c;
@@ -70,6 +94,11 @@ Query* Parser::parse(const std::string& sqlText) {
     std::string upperQuery = toUpper(trim(sqlText));
 
     if (upperQuery.find("SELECT") == 0) {
+        // Validate SELECT has proper spacing
+        if (!hasProperSpacing(upperQuery, "SELECT", 0)) {
+            return nullptr;
+        }
+        
         SelectQuery* q = new SelectQuery();
         size_t fromPos = upperQuery.find("FROM");
         if (fromPos == std::string::npos) { delete q; return nullptr; }
@@ -268,10 +297,21 @@ Query* Parser::parse(const std::string& sqlText) {
 
         return q;
     } else if (upperQuery.find("INSERT") == 0) {
+        // Validate INSERT has proper spacing
+        if (!hasProperSpacing(upperQuery, "INSERT", 0)) {
+            return nullptr;
+        }
+        
         InsertQuery* q = new InsertQuery();
         size_t intoPos = upperQuery.find("INTO");
         size_t valuesPos = upperQuery.find("VALUES");
         if (intoPos == std::string::npos || valuesPos == std::string::npos) { delete q; return nullptr; }
+
+        // Validate INTO has proper spacing
+        if (!hasProperSpacing(upperQuery, "INTO", intoPos)) {
+            delete q;
+            return nullptr;
+        }
 
         // Extract table name and optionally specified columns
         std::string tablePart = trim(sqlText.substr(intoPos + 4, valuesPos - intoPos - 4));
@@ -304,6 +344,11 @@ Query* Parser::parse(const std::string& sqlText) {
 
         return q;
     } else if (upperQuery.find("UPDATE") == 0) {
+        // Validate UPDATE has proper spacing
+        if (!hasProperSpacing(upperQuery, "UPDATE", 0)) {
+            return nullptr;
+        }
+        
         UpdateQuery* q = new UpdateQuery();
         size_t setPos = upperQuery.find("SET");
         if (setPos == std::string::npos) { delete q; return nullptr; }
@@ -330,6 +375,11 @@ Query* Parser::parse(const std::string& sqlText) {
 
         return q;
     } else if (upperQuery.find("DELETE") == 0) {
+        // Validate DELETE has proper spacing
+        if (!hasProperSpacing(upperQuery, "DELETE", 0)) {
+            return nullptr;
+        }
+        
         DeleteQuery* q = new DeleteQuery();
         size_t fromPos = upperQuery.find("FROM");
         if (fromPos == std::string::npos) { delete q; return nullptr; }
@@ -345,8 +395,20 @@ Query* Parser::parse(const std::string& sqlText) {
 
         return q;
     } else if (upperQuery.find("CREATE") == 0 && upperQuery.find("TABLE") != std::string::npos) {
+        // Validate CREATE has proper spacing
+        if (!hasProperSpacing(upperQuery, "CREATE", 0)) {
+            return nullptr;
+        }
+        
         CreateTableQuery* q = new CreateTableQuery();
         size_t tablePos = upperQuery.find("TABLE");
+        
+        // Validate TABLE has proper spacing
+        if (!hasProperSpacing(upperQuery, "TABLE", tablePos)) {
+            delete q;
+            return nullptr;
+        }
+        
         size_t openParen = sqlText.find('(', tablePos);
         size_t closeParen = sqlText.rfind(')');
         
@@ -359,8 +421,8 @@ Query* Parser::parse(const std::string& sqlText) {
         std::string tableNamePart = sqlText.substr(tablePos + 5, openParen - tablePos - 5);
         q->tableName = trim(tableNamePart);
         
-        // Validate table name is not empty (ensures space after TABLE keyword)
-        if (q->tableName.empty()) {
+        // Validate table name is valid identifier
+        if (!isValidIdentifier(q->tableName)) {
             delete q;
             return nullptr;
         }
@@ -416,9 +478,20 @@ Query* Parser::parse(const std::string& sqlText) {
 
         return q;
     } else if (upperQuery.find("DROP") == 0 && upperQuery.find("TABLE") != std::string::npos) {
+        // Validate DROP has proper spacing
+        if (!hasProperSpacing(upperQuery, "DROP", 0)) {
+            return nullptr;
+        }
+        
         DropTableQuery* q = new DropTableQuery();
         size_t tablePos = upperQuery.find("TABLE");
         if (tablePos == std::string::npos) {
+            delete q;
+            return nullptr;
+        }
+
+        // Validate TABLE has proper spacing
+        if (!hasProperSpacing(upperQuery, "TABLE", tablePos)) {
             delete q;
             return nullptr;
         }
