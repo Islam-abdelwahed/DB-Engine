@@ -78,7 +78,45 @@ Query* Parser::parse(const std::string& sqlText) {
         if (columnsPart == "*") {
             q->columns.push_back("*");
         } else {
-            q->columns = split(columnsPart, ',');
+            // Parse columns and aggregate functions
+            auto colList = split(columnsPart, ',');
+            for (const auto& col : colList) {
+                std::string colTrimmed = trim(col);
+                std::string colUpper = toUpper(colTrimmed);
+                
+                // Check if it's an aggregate function
+                bool isAggregate = false;
+                std::vector<std::string> aggFuncs = {"SUM(", "COUNT(", "AVG(", "MIN(", "MAX("};
+                
+                for (const auto& aggFunc : aggFuncs) {
+                    if (colUpper.find(aggFunc) != std::string::npos) {
+                        isAggregate = true;
+                        
+                        // Extract function name
+                        size_t openParen = colUpper.find('(');
+                        std::string funcName = colUpper.substr(0, openParen);
+                        
+                        // Extract column name inside parentheses
+                        size_t closeParen = colTrimmed.find(')');
+                        if (closeParen != std::string::npos) {
+                            std::string innerCol = trim(colTrimmed.substr(openParen + 1, closeParen - openParen - 1));
+                            
+                            AggregateFunction agg;
+                            agg.function = funcName;
+                            agg.column = innerCol; // Can be "*" for COUNT(*)
+                            agg.alias = colTrimmed; // Store original expression as alias
+                            
+                            q->aggregates.push_back(agg);
+                        }
+                        break;
+                    }
+                }
+                
+                // If not aggregate, add as regular column
+                if (!isAggregate) {
+                    q->columns.push_back(colTrimmed);
+                }
+            }
         }
 
         // Find various clause positions
@@ -126,8 +164,19 @@ Query* Parser::parse(const std::string& sqlText) {
             // Find ON clause
             size_t onPos = upperQuery.find("ON", joinPos);
             if (onPos != std::string::npos) {
-                // Extract joined table name
+                // Extract joined table name (between JOIN and ON, excluding INNER/LEFT/RIGHT)
                 std::string joinTablePart = trim(sqlText.substr(joinPos + 4, onPos - joinPos - 4));
+                
+                // Remove INNER/LEFT/RIGHT from table name if present
+                std::string joinTablePartUpper = toUpper(joinTablePart);
+                if (joinTablePartUpper.find("INNER") == 0) {
+                    joinTablePart = trim(joinTablePart.substr(5));
+                } else if (joinTablePartUpper.find("LEFT") == 0) {
+                    joinTablePart = trim(joinTablePart.substr(4));
+                } else if (joinTablePartUpper.find("RIGHT") == 0) {
+                    joinTablePart = trim(joinTablePart.substr(5));
+                }
+                
                 join.tableName = joinTablePart;
                 
                 // Find next clause to determine end of ON
@@ -224,7 +273,24 @@ Query* Parser::parse(const std::string& sqlText) {
         size_t valuesPos = upperQuery.find("VALUES");
         if (intoPos == std::string::npos || valuesPos == std::string::npos) { delete q; return nullptr; }
 
-        q->tableName = trim(sqlText.substr(intoPos + 4, valuesPos - intoPos - 4));
+        // Extract table name and optionally specified columns
+        std::string tablePart = trim(sqlText.substr(intoPos + 4, valuesPos - intoPos - 4));
+        size_t parenPos = tablePart.find('(');
+        
+        if (parenPos != std::string::npos) {
+            // INSERT INTO table(col1, col2) VALUES(...)
+            q->tableName = trim(tablePart.substr(0, parenPos));
+            size_t closeParenPos = tablePart.find(')');
+            if (closeParenPos == std::string::npos) { delete q; return nullptr; }
+            std::string colsPart = tablePart.substr(parenPos + 1, closeParenPos - parenPos - 1);
+            auto colNames = split(colsPart, ',');
+            for (const auto& col : colNames) {
+                q->specifiedColumns.push_back(trim(col));
+            }
+        } else {
+            // INSERT INTO table VALUES(...)
+            q->tableName = tablePart;
+        }
 
         size_t openParen = sqlText.find('(', valuesPos);
         size_t closeParen = sqlText.rfind(')');

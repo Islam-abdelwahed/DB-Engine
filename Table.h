@@ -22,6 +22,7 @@ public:
     std::string getName() const { return name; }
 
     void insertRow(const Row& r);
+    void insertPartialRow(const std::vector<std::string>& columnNames, const Row& values);
     std::vector<Row> selectRows(const Condition& c) const;
     void updateRows(const Condition& c, const std::map<std::string, Value>& nv);
     void deleteRows(const Condition& c);
@@ -31,4 +32,5 @@ public:
 
     const std::vector<Column>& getColumns() const { return columns; }
     const std::vector<Row>& getRows() const { return rows; }
+    size_t getColumnIndex(const std::string& columnName) const;
 };
