@@ -17,10 +17,10 @@ MainWindow::MainWindow(QWidget *parent)
     database = Database("data");
     database.loadAllTables();
 
-    // updateExplorerTree();
+    updateExplorerTree();
 
-    // printOutput("Welcome to SQL Studio!\n");
-    // printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n");
+    printOutput("Welcome to SQL Studio!\n");
+    printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n");
 
     // Set callbacks for executor
     executor.setOutputCallback([this](const std::string& s) {
@@ -58,9 +58,9 @@ void MainWindow::executeSQL(const QString& sql) {
     QString upperQuery = QString::fromStdString(query).toUpper();
 
     try {
-        if (upperQuery.startsWith("CREATE TABLE") == 0) {
+        if (upperQuery.startsWith("CREATE TABLE")) {
             // handleCreateTable(query);
-        } else if (upperQuery.startsWith("DROP TABLE") == 0) {
+        } else if (upperQuery.startsWith("DROP TABLE")) {
             // handleDropTable(query);
         } else {
             Query* q = parser.parse(query);
@@ -81,17 +81,24 @@ void MainWindow::executeSQL(const QString& sql) {
 }
 
 void MainWindow::updateExplorerTree() {
-    auto tableNames = database.getTableNames();
+    auto model = new QStandardItemModel();
+    model->setHorizontalHeaderLabels({"Tables"});
 
-    QStandardItemModel *model = new QStandardItemModel();
-    model->setHorizontalHeaderLabels({"Tables"}); // optional header
+    for (const auto& name : database.getTableNames()) {
+        QStandardItem* parent = new QStandardItem(QString::fromStdString(name));
 
-    for (const auto& name : tableNames) {
-        QStandardItem *item = new QStandardItem(QString::fromStdString(name));
-        model->appendRow(item);
+        // Example child
+        parent->appendRow(new QStandardItem("columns..."));
+
+        model->appendRow(parent);
     }
 
     ui->tables_tree->setModel(model);
+
+    // Enable tree decorations
+    ui->tables_tree->setRootIsDecorated(true);
+    ui->tables_tree->setItemsExpandable(true);
+    ui->tables_tree->setExpandsOnDoubleClick(true);
 }
 
 
@@ -154,7 +161,7 @@ void MainWindow::printOutput(const QString& text) {
 void MainWindow::printError(const QString& error) {
     ui->errorText->append("<span style='color: red;'><b>Error:</b> " + error.toHtmlEscaped() + "</span>");
     QScrollBar *bar = ui->errorText->verticalScrollBar();
-    ui->tabWidget->setCurrentWidget(ui->error_tab);
+    ui->bottomTabs->setCurrentWidget(ui->error_tab);
     ui->errorText->setFocus();
     bar->setValue(bar->maximum());
 }
@@ -162,6 +169,8 @@ void MainWindow::printError(const QString& error) {
 void MainWindow::populateResultsTable(const std::vector<Column>& cols, const std::vector<Row>& rows) {
     // Clear previous content
     ui->resultText->clear();
+    ui->bottomTabs->setCurrentWidget(ui->result_tab);
+    ui->resultText->setFocus();
     if (cols.empty()) {
         printOutput("(0 column(s) returned)");
         return;
@@ -221,8 +230,6 @@ void MainWindow::populateResultsTable(const std::vector<Column>& cols, const std
     // Set the HTML content
     ui->resultText->setHtml(html);
     // Scroll to top
-    ui->tabWidget->setCurrentWidget(ui->result_tab);
-    ui->resultText->setFocus();
     QScrollBar *bar = ui->resultText->verticalScrollBar();
     bar->setValue(0);
 
