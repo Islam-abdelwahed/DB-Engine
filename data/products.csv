@@ -1,0 +1,5 @@
+id,name,price
+STRING,STRING,STRING
+1,Laptop,1000
+3,Keyboard,80
+4,Monitor,300

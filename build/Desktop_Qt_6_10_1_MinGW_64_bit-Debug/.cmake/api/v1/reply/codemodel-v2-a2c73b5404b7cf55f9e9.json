@@ -1,0 +1,79 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-b3c818a3beb25f9b3c5b.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "DB-engine",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "DB-engine::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-DB-engine-Debug-7220be0727aeb7a41d55.json",
+					"name" : "DB-engine",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "DB-engine_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-DB-engine_autogen-Debug-03da62982477d5eccad8.json",
+					"name" : "DB-engine_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "DB-engine_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-DB-engine_autogen_timestamp_deps-Debug-cf3c648dff9097db5b90.json",
+					"name" : "DB-engine_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/Islam Elsayed/Documents/DB-engine/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug",
+		"source" : "C:/Users/Islam Elsayed/Documents/DB-engine"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}
