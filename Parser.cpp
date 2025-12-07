@@ -66,6 +66,18 @@ bool hasProperSpacing(const std::string& upperQuery, const std::string& keyword,
     return std::isspace(nextChar) || nextChar == '(' || nextChar == ';';
 }
 
+// Validate data type string is valid
+bool isValidDataType(const std::string& typeStr) {
+    std::string upper = toUpper(typeStr);
+    return (upper.find("INT") != std::string::npos ||
+            upper.find("VARCHAR") != std::string::npos ||
+            upper.find("FLOAT") != std::string::npos ||
+            upper.find("DOUBLE") != std::string::npos ||
+            upper.find("BOOL") != std::string::npos ||
+            upper == "STRING" ||
+            upper == "TEXT");
+}
+
 // Parse condition from WHERE clause (simple column op value)
 Condition parseCondition(const std::string& wherePart) {
     Condition c;
@@ -102,6 +114,12 @@ Query* Parser::parse(const std::string& sqlText) {
         SelectQuery* q = new SelectQuery();
         size_t fromPos = upperQuery.find("FROM");
         if (fromPos == std::string::npos) { delete q; return nullptr; }
+
+        // Validate FROM has proper spacing
+        if (!hasProperSpacing(upperQuery, "FROM", fromPos)) {
+            delete q;
+            return nullptr;
+        }
 
         std::string columnsPart = trim(sqlText.substr(6, fromPos - 6));
         if (columnsPart == "*") {
@@ -438,9 +456,20 @@ Query* Parser::parse(const std::string& sqlText) {
                 Column col;
                 col.name = parts[0];
                 
-                // Parse data type
-                DataType type = DataType::STRING;
+                // Validate column name is valid identifier
+                if (!isValidIdentifier(col.name)) {
+                    delete q;
+                    return nullptr;
+                }
+                
+                // Parse data type and validate it
                 std::string typeStr = toUpper(parts[1]);
+                if (!isValidDataType(typeStr)) {
+                    delete q; // Invalid data type
+                    return nullptr;
+                }
+                
+                DataType type = DataType::STRING;
                 if (typeStr.find("INT") != std::string::npos) type = DataType::INTEGER;
                 else if (typeStr.find("VARCHAR") != std::string::npos) type = DataType::VARCHAR;
                 else if (typeStr.find("FLOAT") != std::string::npos || typeStr.find("DOUBLE") != std::string::npos) type = DataType::FLOAT;
