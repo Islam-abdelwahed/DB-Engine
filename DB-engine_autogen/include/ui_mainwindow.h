@@ -479,6 +479,7 @@ public:
         dockWidget->setWindowTitle(QCoreApplication::translate("MainWindow", "Object Explorer", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_3), QCoreApplication::translate("MainWindow", "Tab 1", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab_4), QCoreApplication::translate("MainWindow", "Tab 2", nullptr));
+        dockWidget_2->setWindowTitle(QCoreApplication::translate("MainWindow", "Output", nullptr));
         bottomTabs->setTabText(bottomTabs->indexOf(error_tab), QCoreApplication::translate("MainWindow", "Error List", nullptr));
         bottomTabs->setTabText(bottomTabs->indexOf(output_tab), QCoreApplication::translate("MainWindow", "Output", nullptr));
         bottomTabs->setTabText(bottomTabs->indexOf(result_tab), QCoreApplication::translate("MainWindow", "Table", nullptr));

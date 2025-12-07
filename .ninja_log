@@ -30,3 +30,16 @@
 57	389	7868196732388874	D:/Projects/ITI/04-OOP/Project/DB-engine/DB-engine_autogen/mocs_compilation.cpp	9a71ecc67d995952
 390	7013	7868196735720032	CMakeFiles/DB-engine.dir/mainwindow.cpp.obj	966bda0d9f49019f
 7013	8393	7868196801940892	DB-engine.exe	5c32ae3f3ed0a0a6
+68	1110	7868197561996437	DB-engine_autogen/timestamp	9a71ecc67d995952
+68	1110	7868197561996437	DB-engine_autogen/mocs_compilation.cpp	9a71ecc67d995952
+68	1110	7868197561996437	D:/Projects/ITI/04-OOP/Project/DB-engine/DB-engine_autogen/timestamp	9a71ecc67d995952
+68	1110	7868197561996437	D:/Projects/ITI/04-OOP/Project/DB-engine/DB-engine_autogen/mocs_compilation.cpp	9a71ecc67d995952
+1132	2233	7868197563617880	CMakeFiles/DB-engine.dir/Condition.cpp.obj	e69f2cee9fb2f556
+1164	3580	7868197563934198	CMakeFiles/DB-engine.dir/Table.cpp.obj	9b24c67f2957e820
+1147	3823	7868197563771594	CMakeFiles/DB-engine.dir/Parser.cpp.obj	a470e835812424b4
+1139	3965	7868197563687932	CMakeFiles/DB-engine.dir/Database.cpp.obj	cc0b8b7393c4367a
+1155	4241	7868197563841992	CMakeFiles/DB-engine.dir/QueryExecutor.cpp.obj	8ef458e6a4bac0fd
+1111	6199	7868197563406806	CMakeFiles/DB-engine.dir/DB-engine_autogen/mocs_compilation.cpp.obj	877178d3ddffaa4a
+1118	6262	7868197563477894	CMakeFiles/DB-engine.dir/main.cpp.obj	1b1634900b1f0fb5
+1125	8560	7868197563547960	CMakeFiles/DB-engine.dir/mainwindow.cpp.obj	966bda0d9f49019f
+8561	9954	7868197637902299	DB-engine.exe	5c32ae3f3ed0a0a6
