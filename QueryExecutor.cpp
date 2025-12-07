@@ -43,6 +43,22 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         return;
     }
 
+    // Validate WHERE column exists (if specified)
+    if (!q->where.column.empty()) {
+        const auto& columns = table->getColumns();
+        bool found = false;
+        for (const auto& col : columns) {
+            if (col.name == q->where.column) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            error("Column not found in WHERE clause: " + q->where.column);
+            return;
+        }
+    }
+
     std::vector<Row> selected = table->selectRows(q->where);
 
     // Handle JOINs
@@ -126,6 +142,38 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     std::vector<Column> groupedColumns = allColumns;
     
     if (!q->groupBy.empty() || !q->aggregates.empty()) {
+        // Validate GROUP BY columns exist
+        for (const auto& colName : q->groupBy) {
+            bool found = false;
+            for (const auto& col : allColumns) {
+                if (col.name == colName) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                error("Column not found in GROUP BY clause: " + colName);
+                return;
+            }
+        }
+        
+        // Validate aggregate columns exist (except COUNT(*))
+        for (const auto& agg : q->aggregates) {
+            if (agg.column != "*") {
+                bool found = false;
+                for (const auto& col : allColumns) {
+                    if (col.name == agg.column) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    error("Column not found in aggregate function: " + agg.column);
+                    return;
+                }
+            }
+        }
+        
         // Find group by column indices
         std::vector<size_t> groupByIndices;
         for (const auto& colName : q->groupBy) {
@@ -273,6 +321,21 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
 
     // Handle ORDER BY
     if (!q->orderBy.empty()) {
+        // Validate ORDER BY columns exist
+        for (const auto& rule : q->orderBy) {
+            bool found = false;
+            for (const auto& col : allColumns) {
+                if (col.name == rule.column) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                error("Column not found in ORDER BY clause: " + rule.column);
+                return;
+            }
+        }
+        
         std::vector<size_t> orderByIndices;
         for (const auto& rule : q->orderBy) {
             for (size_t i = 0; i < allColumns.size(); ++i) {
