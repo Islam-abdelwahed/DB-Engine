@@ -391,6 +391,11 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
     }
 
     table->updateRows(q->where, q->newValues);
+    
+    // Save to CSV immediately
+    std::string csvPath = "data/" + q->tableName + ".csv";
+    table->saveToCSV(csvPath);
+    
     output("Rows updated");
 }
 
@@ -402,6 +407,11 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
     }
 
     table->deleteRows(q->where);
+    
+    // Save to CSV immediately
+    std::string csvPath = "data/" + q->tableName + ".csv";
+    table->saveToCSV(csvPath);
+    
     output("Rows deleted");
 }
 
