@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <direct.h>
 #include <filesystem> // C++17 for directory iteration
+#include <stdexcept>
 
 void Database::createTable(const std::string& name, const std::vector<Column>& cols) {
     if (tables.find(name) != tables.end()) {
