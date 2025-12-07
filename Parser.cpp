@@ -355,7 +355,16 @@ Query* Parser::parse(const std::string& sqlText) {
             return nullptr;
         }
 
-        q->tableName = trim(sqlText.substr(tablePos + 5, openParen - tablePos - 5));
+        // Extract table name and validate proper spacing
+        std::string tableNamePart = sqlText.substr(tablePos + 5, openParen - tablePos - 5);
+        q->tableName = trim(tableNamePart);
+        
+        // Validate table name is not empty (ensures space after TABLE keyword)
+        if (q->tableName.empty()) {
+            delete q;
+            return nullptr;
+        }
+        
         std::string colsDef = sqlText.substr(openParen + 1, closeParen - openParen - 1);
 
         // Parse columns: column_name TYPE [PRIMARY KEY] [REFERENCES table(column)], ...
