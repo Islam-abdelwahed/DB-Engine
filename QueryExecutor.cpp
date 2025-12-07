@@ -390,6 +390,37 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         return;
     }
 
+    // Validate SET columns exist
+    const auto& columns = table->getColumns();
+    for (const auto& pair : q->newValues) {
+        bool found = false;
+        for (const auto& col : columns) {
+            if (col.name == pair.first) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            error("Column not found: " + pair.first);
+            return;
+        }
+    }
+    
+    // Validate WHERE column exists (if specified)
+    if (!q->where.column.empty()) {
+        bool found = false;
+        for (const auto& col : columns) {
+            if (col.name == q->where.column) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            error("Column not found in WHERE clause: " + q->where.column);
+            return;
+        }
+    }
+
     table->updateRows(q->where, q->newValues);
     
     // Save to CSV immediately
@@ -404,6 +435,22 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
     if (!table) {
         error("Table not found: " + q->tableName);
         return;
+    }
+
+    // Validate WHERE column exists (if specified)
+    if (!q->where.column.empty()) {
+        const auto& columns = table->getColumns();
+        bool found = false;
+        for (const auto& col : columns) {
+            if (col.name == q->where.column) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            error("Column not found in WHERE clause: " + q->where.column);
+            return;
+        }
     }
 
     table->deleteRows(q->where);
