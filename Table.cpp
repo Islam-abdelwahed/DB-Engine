@@ -75,6 +75,7 @@ void Table::loadFromCSV(const std::string& filePath) {
         size_t idx = 0;
         while (std::getline(ss, typeStr, ',') && idx < columns.size()) {
             if (typeStr == "INT") columns[idx].type = DataType::INTEGER;
+            else if (typeStr == "VARCHAR") columns[idx].type = DataType::VARCHAR;
             else if (typeStr == "FLOAT") columns[idx].type = DataType::FLOAT;
             else if (typeStr == "BOOL") columns[idx].type = DataType::BOOLEAN;
             else columns[idx].type = DataType::STRING;
@@ -117,6 +118,7 @@ void Table::saveToCSV(const std::string& filePath) const {
         std::string typeStr;
         switch (columns[i].type) {
             case DataType::INTEGER: typeStr = "INT"; break;
+            case DataType::VARCHAR: typeStr = "VARCHAR"; break;
             case DataType::FLOAT: typeStr = "FLOAT"; break;
             case DataType::BOOLEAN: typeStr = "BOOL"; break;
             default: typeStr = "STRING";

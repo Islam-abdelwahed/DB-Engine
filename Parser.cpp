@@ -81,18 +81,142 @@ Query* Parser::parse(const std::string& sqlText) {
             q->columns = split(columnsPart, ',');
         }
 
+        // Find various clause positions
         size_t wherePos = upperQuery.find("WHERE");
-        if (wherePos != std::string::npos) {
-            std::string tablePart = trim(sqlText.substr(fromPos + 4, wherePos - fromPos - 4));
-            q->tableName = tablePart;
-            std::string wherePart = trim(sqlText.substr(wherePos + 5));
-            q->where = parseCondition(wherePart);
-        } else {
-            std::string tablePart = trim(sqlText.substr(fromPos + 4));
-            q->tableName = tablePart;
+        size_t joinPos = upperQuery.find("JOIN");
+        size_t groupByPos = upperQuery.find("GROUP BY");
+        size_t orderByPos = upperQuery.find("ORDER BY");
+        
+        // Determine the end of the FROM clause
+        size_t fromEnd = std::string::npos;
+        std::vector<size_t> positions = {wherePos, joinPos, groupByPos, orderByPos};
+        for (size_t pos : positions) {
+            if (pos != std::string::npos && (fromEnd == std::string::npos || pos < fromEnd)) {
+                fromEnd = pos;
+            }
+        }
+        
+        if (fromEnd == std::string::npos) {
+            fromEnd = sqlText.length();
+        }
+        
+        // Extract table name
+        std::string tablePart = trim(sqlText.substr(fromPos + 4, fromEnd - fromPos - 4));
+        q->tableName = tablePart;
+
+        // Parse JOIN clauses
+        size_t currentPos = fromEnd;
+        while (joinPos != std::string::npos && joinPos >= currentPos) {
+            JoinClause join;
+            // Determine join type
+            size_t innerPos = upperQuery.rfind("INNER", joinPos);
+            size_t leftPos = upperQuery.rfind("LEFT", joinPos);
+            size_t rightPos = upperQuery.rfind("RIGHT", joinPos);
+            
+            if (innerPos != std::string::npos && innerPos < joinPos && innerPos > currentPos) {
+                join.joinType = "INNER";
+            } else if (leftPos != std::string::npos && leftPos < joinPos && leftPos > currentPos) {
+                join.joinType = "LEFT";
+            } else if (rightPos != std::string::npos && rightPos < joinPos && rightPos > currentPos) {
+                join.joinType = "RIGHT";
+            } else {
+                join.joinType = "INNER"; // Default
+            }
+            
+            // Find ON clause
+            size_t onPos = upperQuery.find("ON", joinPos);
+            if (onPos != std::string::npos) {
+                // Extract joined table name
+                std::string joinTablePart = trim(sqlText.substr(joinPos + 4, onPos - joinPos - 4));
+                join.tableName = joinTablePart;
+                
+                // Find next clause to determine end of ON
+                size_t onEnd = std::string::npos;
+                size_t nextJoin = upperQuery.find("JOIN", onPos);
+                std::vector<size_t> nextPositions = {wherePos, nextJoin, groupByPos, orderByPos};
+                for (size_t pos : nextPositions) {
+                    if (pos != std::string::npos && pos > onPos && (onEnd == std::string::npos || pos < onEnd)) {
+                        onEnd = pos;
+                    }
+                }
+                if (onEnd == std::string::npos) onEnd = sqlText.length();
+                
+                // Parse ON condition (table1.col = table2.col)
+                std::string onClause = trim(sqlText.substr(onPos + 2, onEnd - onPos - 2));
+                size_t eqPos = onClause.find('=');
+                if (eqPos != std::string::npos) {
+                    std::string leftSide = trim(onClause.substr(0, eqPos));
+                    std::string rightSide = trim(onClause.substr(eqPos + 1));
+                    
+                    // Extract column names (may include table prefix)
+                    size_t dotPos = leftSide.find('.');
+                    if (dotPos != std::string::npos) {
+                        join.leftColumn = trim(leftSide.substr(dotPos + 1));
+                    } else {
+                        join.leftColumn = leftSide;
+                    }
+                    
+                    dotPos = rightSide.find('.');
+                    if (dotPos != std::string::npos) {
+                        join.rightColumn = trim(rightSide.substr(dotPos + 1));
+                    } else {
+                        join.rightColumn = rightSide;
+                    }
+                }
+                
+                q->joins.push_back(join);
+                currentPos = onEnd;
+                joinPos = upperQuery.find("JOIN", currentPos);
+            } else {
+                break;
+            }
         }
 
-        // TODO: Parse groupBy, orderBy if present
+        // Parse WHERE clause
+        if (wherePos != std::string::npos) {
+            size_t whereEnd = std::string::npos;
+            std::vector<size_t> nextPositions = {groupByPos, orderByPos};
+            for (size_t pos : nextPositions) {
+                if (pos != std::string::npos && (whereEnd == std::string::npos || pos < whereEnd)) {
+                    whereEnd = pos;
+                }
+            }
+            if (whereEnd == std::string::npos) whereEnd = sqlText.length();
+            
+            std::string wherePart = trim(sqlText.substr(wherePos + 5, whereEnd - wherePos - 5));
+            q->where = parseCondition(wherePart);
+        }
+
+        // Parse GROUP BY
+        if (groupByPos != std::string::npos) {
+            size_t groupByEnd = orderByPos != std::string::npos ? orderByPos : sqlText.length();
+            std::string groupByPart = trim(sqlText.substr(groupByPos + 8, groupByEnd - groupByPos - 8));
+            q->groupBy = split(groupByPart, ',');
+        }
+
+        // Parse ORDER BY
+        if (orderByPos != std::string::npos) {
+            std::string orderByPart = trim(sqlText.substr(orderByPos + 8));
+            auto orderItems = split(orderByPart, ',');
+            for (const auto& item : orderItems) {
+                SortRule rule;
+                std::string itemUpper = toUpper(item);
+                if (itemUpper.find("DESC") != std::string::npos) {
+                    rule.ascending = false;
+                    rule.columnName = trim(item.substr(0, item.find_last_of(' ')));
+                } else {
+                    rule.ascending = true;
+                    // Remove ASC if present
+                    if (itemUpper.find("ASC") != std::string::npos) {
+                        rule.columnName = trim(item.substr(0, item.find_last_of(' ')));
+                    } else {
+                        rule.columnName = trim(item);
+                    }
+                }
+                q->orderBy.push_back(rule);
+            }
+        }
+
         return q;
     } else if (upperQuery.find("INSERT") == 0) {
         InsertQuery* q = new InsertQuery();
@@ -168,17 +292,45 @@ Query* Parser::parse(const std::string& sqlText) {
         q->tableName = trim(sqlText.substr(tablePos + 5, openParen - tablePos - 5));
         std::string colsDef = sqlText.substr(openParen + 1, closeParen - openParen - 1);
 
-        // Parse columns: column_name TYPE, column_name TYPE, ...
+        // Parse columns: column_name TYPE [PRIMARY KEY] [REFERENCES table(column)], ...
         auto defs = split(colsDef, ',');
         for (auto& def : defs) {
+            std::string defUpper = toUpper(def);
             auto parts = split(trim(def), ' ');
             if (parts.size() >= 2) {
+                Column col;
+                col.name = parts[0];
+                
+                // Parse data type
                 DataType type = DataType::STRING;
                 std::string typeStr = toUpper(parts[1]);
                 if (typeStr.find("INT") != std::string::npos) type = DataType::INTEGER;
+                else if (typeStr.find("VARCHAR") != std::string::npos) type = DataType::VARCHAR;
                 else if (typeStr.find("FLOAT") != std::string::npos || typeStr.find("DOUBLE") != std::string::npos) type = DataType::FLOAT;
                 else if (typeStr.find("BOOL") != std::string::npos) type = DataType::BOOLEAN;
-                q->columns.emplace_back(parts[0], type);
+                col.type = type;
+                
+                // Check for PRIMARY KEY
+                if (defUpper.find("PRIMARY") != std::string::npos && defUpper.find("KEY") != std::string::npos) {
+                    col.isPrimaryKey = true;
+                }
+                
+                // Check for FOREIGN KEY (REFERENCES table(column))
+                size_t refPos = defUpper.find("REFERENCES");
+                if (refPos != std::string::npos) {
+                    col.isForeignKey = true;
+                    std::string refPart = trim(def.substr(refPos + 10));
+                    size_t parenPos = refPart.find('(');
+                    if (parenPos != std::string::npos) {
+                        col.foreignTable = trim(refPart.substr(0, parenPos));
+                        size_t closeParenPos = refPart.find(')');
+                        if (closeParenPos != std::string::npos) {
+                            col.foreignColumn = trim(refPart.substr(parenPos + 1, closeParenPos - parenPos - 1));
+                        }
+                    }
+                }
+                
+                q->columns.push_back(col);
             }
         }
 

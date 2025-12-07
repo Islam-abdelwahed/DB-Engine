@@ -4,6 +4,7 @@
 
 enum class DataType {
     STRING,
+    VARCHAR,
     INTEGER,
     FLOAT,
     BOOLEAN,
