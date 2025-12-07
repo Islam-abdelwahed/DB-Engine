@@ -24,6 +24,34 @@ void Table::insertRow(const Row& r) {
     rows.push_back(r);
 }
 
+void Table::insertPartialRow(const std::vector<std::string>& columnNames, const Row& values) {
+    Row fullRow;
+    fullRow.values.resize(columns.size());
+    
+    // Initialize all values as empty strings with proper types
+    for (size_t i = 0; i < columns.size(); ++i) {
+        fullRow.values[i] = Value(columns[i].type, "");
+    }
+    
+    // Fill in specified columns
+    for (size_t i = 0; i < columnNames.size() && i < values.values.size(); ++i) {
+        auto it = columnIndexMap.find(columnNames[i]);
+        if (it != columnIndexMap.end()) {
+            fullRow.values[it->second] = values.values[i];
+        }
+    }
+    
+    rows.push_back(fullRow);
+}
+
+size_t Table::getColumnIndex(const std::string& columnName) const {
+    auto it = columnIndexMap.find(columnName);
+    if (it != columnIndexMap.end()) {
+        return it->second;
+    }
+    return static_cast<size_t>(-1); // Not found
+}
+
 std::vector<Row> Table::selectRows(const Condition& c) const {
     std::vector<Row> result;
     for (const auto& row : rows) {
