@@ -6,6 +6,8 @@ enum class QueryType {
     INSERT,
     UPDATE,
     DELETE,
+    CREATE_TABLE,
+    DROP_TABLE,
     UNKNOWN
 };
 

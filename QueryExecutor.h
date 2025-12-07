@@ -6,6 +6,8 @@
 #include "InsertQuery.h"
 #include "UpdateQuery.h"
 #include "DeleteQuery.h"
+#include "CreateTableQuery.h"
+#include "DropTableQuery.h"
 #include <functional>
 
 using OutputCallback = std::function<void(const std::string&)>;
@@ -25,6 +27,8 @@ private:
     void executeInsert(InsertQuery* q, Database& db);
     void executeUpdate(UpdateQuery* q, Database& db);
     void executeDelete(DeleteQuery* q, Database& db);
+    void executeCreateTable(CreateTableQuery* q, Database& db);
+    void executeDropTable(DropTableQuery* q, Database& db);
 
     OutputCallback output = [](const std::string& s) {};
     ErrorCallback error = [](const std::string& s) {};

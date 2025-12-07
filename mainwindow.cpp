@@ -50,33 +50,60 @@ void MainWindow::on_actionExecute_triggered() {
 }
 
 void MainWindow::executeSQL(const QString& sql) {
-    std::string query = sql.trimmed().toStdString();
-    if (query.empty()) return;
+    std::string input = sql.trimmed().toStdString();
+    if (input.empty()) return;
 
-    printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + sql.toHtmlEscaped() + "</span>");
-
-    QString upperQuery = QString::fromStdString(query).toUpper();
-
-    try {
-        if (upperQuery.startsWith("CREATE TABLE") == 0) {
-            // handleCreateTable(query);
-        } else if (upperQuery.startsWith("DROP TABLE") == 0) {
-            // handleDropTable(query);
+    // Split multiple queries by semicolon
+    std::vector<std::string> queries;
+    std::string currentQuery;
+    for (char c : input) {
+        if (c == ';') {
+            std::string trimmed = currentQuery;
+            // Trim whitespace
+            size_t start = trimmed.find_first_not_of(" \t\n\r");
+            if (start != std::string::npos) {
+                size_t end = trimmed.find_last_not_of(" \t\n\r");
+                trimmed = trimmed.substr(start, end - start + 1);
+                if (!trimmed.empty()) {
+                    queries.push_back(trimmed);
+                }
+            }
+            currentQuery.clear();
         } else {
+            currentQuery += c;
+        }
+    }
+    // Add last query if no trailing semicolon
+    if (!currentQuery.empty()) {
+        std::string trimmed = currentQuery;
+        size_t start = trimmed.find_first_not_of(" \t\n\r");
+        if (start != std::string::npos) {
+            size_t end = trimmed.find_last_not_of(" \t\n\r");
+            trimmed = trimmed.substr(start, end - start + 1);
+            if (!trimmed.empty()) {
+                queries.push_back(trimmed);
+            }
+        }
+    }
+
+    // Execute each query
+    for (const auto& query : queries) {
+        printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + QString::fromStdString(query).toHtmlEscaped() + "</span>");
+
+        try {
             Query* q = parser.parse(query);
             if (q) {
                 executor.execute(q, database);
                 delete q;
             } else {
                 printError("Syntax error or unsupported query.");
-                printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> error </span>");
             }
+        } catch (const std::exception& e) {
+            printError("Exception: " + QString(e.what()));
         }
-    } catch (const std::exception& e) {
-        printError("Exception: " + QString(e.what()));
-    }
 
-    printOutput(""); // newline
+        printOutput(""); // newline
+    }
     // updateExplorerTree(); // Refresh explorer after changes
 }
 
