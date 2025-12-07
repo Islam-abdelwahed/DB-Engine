@@ -10,6 +10,7 @@ D:/Projects/ITI/04-OOP/Project/DB-engine/Query.h
 D:/Projects/ITI/04-OOP/Project/DB-engine/Table.h
 D:/Projects/ITI/04-OOP/Project/DB-engine/Row.h
 D:/Projects/ITI/04-OOP/Project/DB-engine/SelectQuery.h
+D:/Projects/ITI/04-OOP/Project/DB-engine/CreateTableQuery.h
 D:/Projects/ITI/04-OOP/Project/DB-engine/SortRule.h
 D:/Projects/ITI/04-OOP/Project/DB-engine/UpdateQuery.h
 D:/Projects/ITI/04-OOP/Project/DB-engine/Value.h
@@ -391,9 +392,11 @@ D:/Projects/ITI/04-OOP/Project/DB-engine/mainwindow.h
  mdp:C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/Column.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/Condition.h
+ mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/CreateTableQuery.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/DB-engine_autogen/moc_predefs.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/Database.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/DeleteQuery.h
+ mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/DropTableQuery.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/InsertQuery.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/Parser.h
  mdp:D:/Projects/ITI/04-OOP/Project/DB-engine/Query.h
@@ -413,3 +416,4 @@ D:/Projects/ITI/04-OOP/Project/DB-engine/Table.cpp
 D:/Projects/ITI/04-OOP/Project/DB-engine/main.cpp
 D:/Projects/ITI/04-OOP/Project/DB-engine/mainwindow.cpp
  uic:ui_mainwindow.h
+D:/Projects/ITI/04-OOP/Project/DB-engine/DropTableQuery.h

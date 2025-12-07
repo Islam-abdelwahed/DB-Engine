@@ -328,6 +328,12 @@
 			null
 		],
 		[
+			"D:/Projects/ITI/04-OOP/Project/DB-engine/CreateTableQuery.h",
+			"MU",
+			"EWIEGA46WW/moc_CreateTableQuery.cpp",
+			null
+		],
+		[
 			"D:/Projects/ITI/04-OOP/Project/DB-engine/Database.h",
 			"MU",
 			"EWIEGA46WW/moc_Database.cpp",
@@ -337,6 +343,12 @@
 			"D:/Projects/ITI/04-OOP/Project/DB-engine/DeleteQuery.h",
 			"MU",
 			"EWIEGA46WW/moc_DeleteQuery.cpp",
+			null
+		],
+		[
+			"D:/Projects/ITI/04-OOP/Project/DB-engine/DropTableQuery.h",
+			"MU",
+			"EWIEGA46WW/moc_DropTableQuery.cpp",
 			null
 		],
 		[

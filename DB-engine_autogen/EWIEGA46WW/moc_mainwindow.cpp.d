@@ -376,8 +376,10 @@ D:/Projects/ITI/04-OOP/Project/DB-engine/DB-engine_autogen/EWIEGA46WW/moc_mainwi
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/Column.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/Condition.h \
+  D:/Projects/ITI/04-OOP/Project/DB-engine/CreateTableQuery.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/Database.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/DeleteQuery.h \
+  D:/Projects/ITI/04-OOP/Project/DB-engine/DropTableQuery.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/InsertQuery.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/Parser.h \
   D:/Projects/ITI/04-OOP/Project/DB-engine/Query.h \
