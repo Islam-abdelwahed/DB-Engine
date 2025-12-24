@@ -69,4 +69,41 @@ public:
             return data > other.data;
         }
     }
+    
+    // Validate if value can be converted to the specified type
+    bool isValidForType(DataType targetType) const {
+        if (isNull) return true; // NULL is valid for any type
+        
+        switch (targetType) {
+            case DataType::INTEGER:
+                try {
+                    size_t pos;
+                    stoi(data, &pos);
+                    return pos == data.length(); // Ensure entire string was converted
+                } catch (...) {
+                    return false;
+                }
+            
+            case DataType::FLOAT:
+                try {
+                    size_t pos;
+                    stod(data, &pos);
+                    return pos == data.length();
+                } catch (...) {
+                    return false;
+                }
+            
+            case DataType::BOOLEAN:
+                return data == "0" || data == "1" || 
+                       data == "true" || data == "false" ||
+                       data == "TRUE" || data == "FALSE";
+            
+            case DataType::STRING:
+            case DataType::VARCHAR:
+            case DataType::DATE:
+            case DataType::UNKNOWN:
+            default:
+                return true; // Strings accept anything
+        }
+    }
 };
