@@ -4,7 +4,6 @@
 #include <map>
 #include <vector>
 #include "Table.h"
-using namespace std;
 
 using namespace std;
 

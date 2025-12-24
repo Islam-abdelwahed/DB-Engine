@@ -6,7 +6,6 @@
 #include "Column.h"
 #include "Row.h"
 #include "Condition.h"
-using namespace std;
 
 using namespace std;
 
@@ -21,6 +20,8 @@ private:
     map<string, size_t> columnIndexMap;
 
     void rebuildIndexMap();
+    bool validatePrimaryKey(const Row& r) const;
+    bool validateForeignKeys(const Row& r, Database* db) const;
 
 public:
     Table();

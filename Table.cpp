@@ -1,5 +1,6 @@
 // src/Table.cpp
 #include "Table.h"
+#include "Database.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -94,6 +95,7 @@ bool Table::insertRow(const Row& r, Database* db) {
     }
     
     rows.push_back(r);
+    return true;
 }
 
 bool Table::insertPartialRow(const vector<string>& columnNames, const Row& values, Database* db) {
@@ -113,7 +115,18 @@ bool Table::insertPartialRow(const vector<string>& columnNames, const Row& value
         }
     }
     
+    // Validate primary key uniqueness
+    if (!validatePrimaryKey(fullRow)) {
+        return false; // Duplicate primary key
+    }
+    
+    // Validate foreign key constraints
+    if (!validateForeignKeys(fullRow, db)) {
+        return false; // Foreign key violation
+    }
+    
     rows.push_back(fullRow);
+    return true;
 }
 
 size_t Table::getColumnIndex(const string& columnName) const {
@@ -148,11 +161,44 @@ bool Table::updateRows(const Condition& c, const map<string, Value>& nv, Databas
             for (const auto& pair : nv) {
                 auto it = columnIndexMap.find(pair.first);
                 if (it != columnIndexMap.end()) {
-                    row.values[it->second] = pair.second;
+                    updatedRow.values[it->second] = pair.second;
+                }
+            }
+            
+            updatedRows.push_back(updatedRow);
+        }
+    }
+    
+    // Validate all updated rows
+    for (size_t i = 0; i < updatedRows.size(); ++i) {
+        const Row& updatedRow = updatedRows[i];
+        size_t originalIdx = matchingIndices[i];
+        
+        // Check primary key uniqueness (excluding the row being updated)
+        for (size_t colIdx = 0; colIdx < columns.size(); ++colIdx) {
+            if (columns[colIdx].isPrimaryKey) {
+                for (size_t rowIdx = 0; rowIdx < rows.size(); ++rowIdx) {
+                    if (rowIdx != originalIdx && colIdx < updatedRow.values.size() && colIdx < rows[rowIdx].values.size()) {
+                        if (rows[rowIdx].values[colIdx].data == updatedRow.values[colIdx].data) {
+                            return false; // Duplicate primary key
+                        }
+                    }
                 }
             }
         }
+        
+        // Validate foreign keys
+        if (!validateForeignKeys(updatedRow, db)) {
+            return false; // Foreign key violation
+        }
     }
+    
+    // If all validations pass, apply the updates
+    for (size_t i = 0; i < matchingIndices.size(); ++i) {
+        rows[matchingIndices[i]] = updatedRows[i];
+    }
+    
+    return true;
 }
 
 void Table::deleteRows(const Condition& c) {

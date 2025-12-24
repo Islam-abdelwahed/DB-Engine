@@ -1,7 +1,6 @@
 // include/Value.h
 #pragma once
 #include <string>
-using namespace std;
 
 using namespace std;
 
@@ -24,8 +23,11 @@ public:
     Value(DataType t, const string& d) : type(t), data(d) {}
 
     bool operator==(const Value& other) const {
-
         return data == other.data;
+    }
+
+    bool operator!=(const Value& other) const {
+        return data != other.data;
     }
 
     bool operator<(const Value& other) const {
