@@ -357,6 +357,9 @@ void Table::saveToCSV(const string& filePath) const {
     // Write rows
     for (const auto& row : rows) {
         for (size_t i = 0; i < row.values.size(); ++i) {
+            if((row.values[i].data)=="")
+                file<< "null";
+            else
             file << row.values[i].data;
             if (i < row.values.size() - 1) file << ",";
         }
