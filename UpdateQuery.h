@@ -8,6 +8,8 @@
 using namespace std;
 
 
+using namespace std;
+
 class UpdateQuery : public Query {
 public:
     string tableName;

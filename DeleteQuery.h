@@ -5,6 +5,8 @@
 #include "Condition.h"
 using namespace std;
 
+using namespace std;
+
 class DeleteQuery : public Query {
 public:
     string tableName;

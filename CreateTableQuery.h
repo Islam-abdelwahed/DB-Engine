@@ -6,6 +6,8 @@
 #include <vector>
 using namespace std;
 
+using namespace std;
+
 class CreateTableQuery : public Query {
 public:
     string tableName;

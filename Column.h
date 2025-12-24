@@ -3,8 +3,6 @@
 #include <string>
 #include "Value.h"
 using namespace std;
-
-
 class Column {
 public:
     string name;

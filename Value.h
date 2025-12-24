@@ -3,6 +3,8 @@
 #include <string>
 using namespace std;
 
+using namespace std;
+
 enum class DataType {
     STRING,
     VARCHAR,
@@ -37,10 +39,14 @@ public:
     }
 
     bool operator>(const Value& other) const {
-        return other.data < data;
-    }
-
-    bool operator!=(const Value& other) const {
-        return !(data==other.data);
+        // Try numeric comparison first
+        try {
+            double thisNum = stod(data);
+            double otherNum = stod(other.data);
+            return thisNum > otherNum;
+        } catch (...) {
+            // Fall back to string comparison
+            return data > other.data;
+        }
     }
 };

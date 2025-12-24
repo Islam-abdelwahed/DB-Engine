@@ -6,9 +6,11 @@
 #include "Table.h"
 using namespace std;
 
+using namespace std;
+
 class Database {
 private:
-    map<string, Table> tables;
+    map<string, Table> tables;  // Changed to own Table, not pointer
     string storagePath;
 
 public:

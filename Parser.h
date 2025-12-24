@@ -5,6 +5,8 @@
 using namespace std;
 
 
+using namespace std;
+
 class Parser {
 public:
     Query* parse(const string& sqlText);

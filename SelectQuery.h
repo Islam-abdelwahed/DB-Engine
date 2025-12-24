@@ -7,6 +7,8 @@
 #include "SortRule.h"
 using namespace std;
 
+using namespace std;
+
 struct JoinClause {
     string tableName;
     string leftColumn;  // column from main table

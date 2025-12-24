@@ -6,6 +6,8 @@
 using namespace std;
 
 
+using namespace std;
+
 class InsertQuery : public Query {
 public:
     string tableName;

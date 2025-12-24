@@ -6,6 +6,8 @@
 #include <QStandardItemModel>
 #include <QStandardItem>
 
+using namespace std;
+
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -24,13 +26,13 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n");
 
     // Set callbacks for executor
-    executor.setOutputCallback([this](const std::string& s) {
+    executor.setOutputCallback([this](const string& s) {
         printOutput(QString::fromStdString(s));
     });
-    executor.setErrorCallback([this](const std::string& s) {
+    executor.setErrorCallback([this](const string& s) {
         printError(QString::fromStdString(s));
     });
-    executor.setResultTableCallback([this](const std::vector<Column>& cols, const std::vector<Row>& rows) {
+    executor.setResultTableCallback([this](const vector<Column>& cols, const vector<Row>& rows) {
         populateResultsTable(cols, rows);
     });
     executor.setTreeRefreshCallback([this](){
@@ -55,18 +57,18 @@ void MainWindow::on_actionSave_triggered() {
 }
 
 void MainWindow::executeSQL(const QString& sql) {
-    std::string input = sql.trimmed().toStdString();
+    string input = sql.trimmed().toStdString();
     if (input.empty()) return;
     printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + sql.toHtmlEscaped() + "</span>");
     // Split multiple queries by semicolon
-    std::vector<std::string> queries;
-    std::string currentQuery;
+    vector<string> queries;
+    string currentQuery;
     for (char c : input) {
         if (c == ';') {
-            std::string trimmed = currentQuery;
+            string trimmed = currentQuery;
             // Trim whitespace
             size_t start = trimmed.find_first_not_of(" \t\n\r");
-            if (start != std::string::npos) {
+            if (start != string::npos) {
                 size_t end = trimmed.find_last_not_of(" \t\n\r");
                 trimmed = trimmed.substr(start, end - start + 1);
                 if (!trimmed.empty()) {
@@ -80,9 +82,9 @@ void MainWindow::executeSQL(const QString& sql) {
     }
     // Add last query if no trailing semicolon
     if (!currentQuery.empty()) {
-        std::string trimmed = currentQuery;
+        string trimmed = currentQuery;
         size_t start = trimmed.find_first_not_of(" \t\n\r");
-        if (start != std::string::npos) {
+        if (start != string::npos) {
             size_t end = trimmed.find_last_not_of(" \t\n\r");
             trimmed = trimmed.substr(start, end - start + 1);
             if (!trimmed.empty()) {
@@ -103,7 +105,7 @@ void MainWindow::executeSQL(const QString& sql) {
             } else {
                 printError("Syntax error or unsupported query.");
             }
-        } catch (const std::exception& e) {
+        } catch (const exception& e) {
             printError("Exception: " + QString(e.what()));
         }
 
@@ -153,7 +155,7 @@ void MainWindow::printError(const QString& error) {
     bar->setValue(bar->maximum());
 }
 
-void MainWindow::populateResultsTable(const std::vector<Column>& cols, const std::vector<Row>& rows) {
+void MainWindow::populateResultsTable(const vector<Column>& cols, const vector<Row>& rows) {
     // Clear previous content
 
     ui->bottomTabs->setCurrentWidget(ui->result_tab);

@@ -3,6 +3,8 @@
 #include <string>
 using namespace std;
 
+using namespace std;
+
 class SortRule {
 public:
     string column;

@@ -8,6 +8,10 @@
 #include "Condition.h"
 using namespace std;
 
+using namespace std;
+
+// Forward declaration
+class Database;
 
 class Table {
 private:
@@ -23,10 +27,10 @@ public:
     Table(const string& n, const vector<Column>& cols);
     string getName() const { return name; }
 
-    void insertRow(const Row& r);
-    void insertPartialRow(const vector<string>& columnNames, const Row& values);
+    bool insertRow(const Row& r, Database* db = nullptr);
+    bool insertPartialRow(const vector<string>& columnNames, const Row& values, Database* db = nullptr);
     vector<Row> selectRows(const Condition& c) const;
-    void updateRows(const Condition& c, const map<string, Value>& nv);
+    bool updateRows(const Condition& c, const map<string, Value>& nv, Database* db = nullptr);
     void deleteRows(const Condition& c);
 
     void loadFromCSV(const string& filePath);

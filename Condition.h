@@ -5,8 +5,6 @@
 #include "Row.h"
 #include "Column.h"
 using namespace std;
-
-
 class Condition {
 public:
     string column;

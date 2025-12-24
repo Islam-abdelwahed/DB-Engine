@@ -11,6 +11,7 @@
 #include <functional>
 using namespace std;
 
+using namespace std;
 
 using OutputCallback = function<void(const string&)>;
 using ErrorCallback = function<void(const string&)>;

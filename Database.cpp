@@ -5,6 +5,8 @@
 #include <filesystem> // C++17 for directory iteration
 #include <stdexcept>
 
+using namespace std;
+
 void Database::createTable(const string& name, const vector<Column>& cols) {
     if (tables.find(name) != tables.end()) {
         throw runtime_error("Table already exists: " + name);
@@ -31,7 +33,7 @@ void Database::loadAllTables() {
             string tableName = entry.path().stem().string();
             Table table(tableName, {}); // Temp, will load columns
             table.loadFromCSV(entry.path().string());
-            tables[tableName] = std::move(table);
+            tables[tableName] = move(table);
         }
     }
 }

@@ -4,6 +4,8 @@
 #include <sstream>
 #include <algorithm>
 
+using namespace std;
+
 Table::Table() {
     rebuildIndexMap();
 }
@@ -19,12 +21,82 @@ void Table::rebuildIndexMap() {
     }
 }
 
-void Table::insertRow(const Row& r) {
-    if (r.values.size() != columns.size()) return; // Error handling
+bool Table::validatePrimaryKey(const Row& r) const {
+    // Check each column that is a primary key
+    for (size_t i = 0; i < columns.size(); ++i) {
+        if (columns[i].isPrimaryKey) {
+            // Check if this value already exists in existing rows
+            for (const auto& existingRow : rows) {
+                if (i < r.values.size() && i < existingRow.values.size()) {
+                    if (existingRow.values[i].data == r.values[i].data) {
+                        return false; // Duplicate primary key found
+                    }
+                }
+            }
+        }
+    }
+    return true; // No duplicates found
+}
+
+bool Table::validateForeignKeys(const Row& r, Database* db) const {
+    if (!db) return true; // Can't validate without database reference
+    
+    // Check each column that is a foreign key
+    for (size_t i = 0; i < columns.size(); ++i) {
+        if (columns[i].isForeignKey) {
+            // Get the referenced table
+            Table* refTable = db->getTable(columns[i].foreignTable);
+            if (!refTable) {
+                return false; // Referenced table doesn't exist
+            }
+            
+            // Find the referenced column index
+            size_t refColIdx = refTable->getColumnIndex(columns[i].foreignColumn);
+            if (refColIdx == static_cast<size_t>(-1)) {
+                return false; // Referenced column doesn't exist
+            }
+            
+            // Check if the value exists in the referenced table
+            if (i < r.values.size()) {
+                const string& fkValue = r.values[i].data;
+                bool found = false;
+                
+                const auto& refRows = refTable->getRows();
+                for (const auto& refRow : refRows) {
+                    if (refColIdx < refRow.values.size()) {
+                        if (refRow.values[refColIdx].data == fkValue) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!found && !fkValue.empty()) {
+                    return false; // Foreign key value doesn't exist in referenced table
+                }
+            }
+        }
+    }
+    return true; // All foreign keys are valid
+}
+
+bool Table::insertRow(const Row& r, Database* db) {
+    if (r.values.size() != columns.size()) return false; // Error handling
+    
+    // Validate primary key uniqueness
+    if (!validatePrimaryKey(r)) {
+        return false; // Duplicate primary key
+    }
+    
+    // Validate foreign key constraints
+    if (!validateForeignKeys(r, db)) {
+        return false; // Foreign key violation
+    }
+    
     rows.push_back(r);
 }
 
-void Table::insertPartialRow(const vector<string>& columnNames, const Row& values) {
+bool Table::insertPartialRow(const vector<string>& columnNames, const Row& values, Database* db) {
     Row fullRow;
     fullRow.values.resize(columns.size());
     
@@ -62,9 +134,17 @@ vector<Row> Table::selectRows(const Condition& c) const {
     return result;
 }
 
-void Table::updateRows(const Condition& c, const map<string, Value>& nv) {
-    for (auto& row : rows) {
-        if (c.evaluate(row, columns)) {
+bool Table::updateRows(const Condition& c, const map<string, Value>& nv, Database* db) {
+    // First, collect rows that match the condition and prepare updated versions
+    vector<size_t> matchingIndices;
+    vector<Row> updatedRows;
+    
+    for (size_t idx = 0; idx < rows.size(); ++idx) {
+        if (c.evaluate(rows[idx], columns)) {
+            matchingIndices.push_back(idx);
+            Row updatedRow = rows[idx];
+            
+            // Apply updates
             for (const auto& pair : nv) {
                 auto it = columnIndexMap.find(pair.first);
                 if (it != columnIndexMap.end()) {
@@ -96,7 +176,7 @@ void Table::loadFromCSV(const string& filePath) {
         }
     }
 
-    // Read types if present
+    // Read types if present (current code has types in second line)
     if (getline(file, line)) {
         stringstream ss(line);
         string typeStr;

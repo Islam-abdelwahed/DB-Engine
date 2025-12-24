@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <cctype>
 
+using namespace std;
+
 // Helper functions from SQLParser.h and Helper.cpp adapted
 
 string toUpper(string str) {

@@ -4,6 +4,8 @@
 #include <string>
 using namespace std;
 
+using namespace std;
+
 class DropTableQuery : public Query {
 public:
     string tableName;

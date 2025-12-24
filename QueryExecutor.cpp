@@ -8,6 +8,8 @@
 #include "DropTableQuery.h"
 #include <algorithm>
 
+using namespace std;
+
 
 void QueryExecutor::execute(Query* q, Database& db) {
     if (!q) return;
