@@ -520,9 +520,10 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     }
 
     // Call the result callback if set
+    if(!(resultColumns.size()==0 && projectedRows.size()==0))
     resultTable(resultColumns, projectedRows);
 
-    output("(" + to_string(projectedRows.size()) + " row(s) selected)");
+    output("(" + to_string(projectedRows.size()) + " row(s) selected)",true);
 }
 
 void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
@@ -552,7 +553,7 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
     // string csvPath = "data/" + q->tableName + ".csv";
     // table->saveToCSV(csvPath);
     
-    output("1 row inserted");
+    output("1 row inserted",true);
 }
 
 void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
@@ -599,7 +600,7 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
     string csvPath = "data/" + q->tableName + ".csv";
     table->saveToCSV(csvPath);
     
-    output("Rows updated");
+    output("Rows updated",true);
 }
 
 void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
@@ -631,7 +632,7 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
     string csvPath = "data/" + q->tableName + ".csv";
     table->saveToCSV(csvPath);
     
-    output("Rows deleted");
+    output("Rows deleted",true);
 }
 
 void QueryExecutor::executeCreateTable(CreateTableQuery* q, Database& db) {
@@ -642,7 +643,7 @@ void QueryExecutor::executeCreateTable(CreateTableQuery* q, Database& db) {
     }
 
     db.createTable(q->tableName, q->columns);
-    output("Table '" + q->tableName + "' created successfully");
+    output("Table '" + q->tableName + "' created successfully",true);
     tree();
 }
 
@@ -666,12 +667,12 @@ void QueryExecutor::executeDropTable(DropTableQuery* q, Database& db) {
     
     if (droppedCount > 0) {
         if (droppedCount == 1) {
-            output("Table '" + q->tableNames[0] + "' dropped successfully");
+            output("Table '" + q->tableNames[0] + "' dropped successfully",true);
         } else {
-            output(to_string(droppedCount) + " tables dropped successfully");
+            output(to_string(droppedCount) + " tables dropped successfully",true);
         }
         tree();
     } else if (q->ifExists) {
-        output("No tables to drop");
+        output("No tables to drop",true);
     }
 }

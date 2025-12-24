@@ -13,7 +13,7 @@ using namespace std;
 
 using namespace std;
 
-using OutputCallback = function<void(const string&)>;
+using OutputCallback = function<void(const string&,const bool& foucs)>;
 using ErrorCallback = function<void(const string&)>;
 using ResultTableCallback = function<void(const vector<Column>&, const vector<Row>&)>;
 using TreeRefreshCallback = function<void()>;
@@ -34,7 +34,7 @@ private:
     void executeCreateTable(CreateTableQuery* q, Database& db);
     void executeDropTable(DropTableQuery* q, Database& db);
 
-    OutputCallback output = [](const string& s) {};
+    OutputCallback output = [](const string& s,const bool& focus) {};
     ErrorCallback error = [](const string& s) {};
     TreeRefreshCallback tree = []() {};
     ResultTableCallback resultTable = [](const vector<Column>&, const vector<Row>&) {};

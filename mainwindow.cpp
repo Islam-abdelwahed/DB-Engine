@@ -22,12 +22,12 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     updateExplorerTree();
 
-    printOutput("Welcome to SQL Studio!\n");
-    printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n");
+    printOutput("Welcome to SQL Studio!\n",false);
+    printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n",true);
 
     // Set callbacks for executor
-    executor.setOutputCallback([this](const string& s) {
-        printOutput(QString::fromStdString(s));
+    executor.setOutputCallback([this](const string& s,const bool& focus) {
+        printOutput(QString::fromStdString(s), focus);
     });
     executor.setErrorCallback([this](const string& s) {
         printError(QString::fromStdString(s));
@@ -59,7 +59,7 @@ void MainWindow::on_actionSave_triggered() {
 void MainWindow::executeSQL(const QString& sql) {
     string input = sql.trimmed().toStdString();
     if (input.empty()) return;
-    printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + sql.toHtmlEscaped() + "</span>");
+    printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + sql.toHtmlEscaped() + "</span>",false);
     // Split multiple queries by semicolon
     vector<string> queries;
     string currentQuery;
@@ -95,7 +95,7 @@ void MainWindow::executeSQL(const QString& sql) {
 
     // Execute each query
     for (const auto& query : queries) {
-        printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + QString::fromStdString(query).toHtmlEscaped() + "</span>");
+        printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + QString::fromStdString(query).toHtmlEscaped() + "</span>",false);
 
         try {
             Query* q = parser.parse(query);
@@ -109,7 +109,7 @@ void MainWindow::executeSQL(const QString& sql) {
             printError("Exception: " + QString(e.what()));
         }
 
-        printOutput(""); // newline
+        printOutput("",false); // newline
     }
     updateExplorerTree(); // Refresh explorer after changes
 }
@@ -141,9 +141,11 @@ void MainWindow::updateExplorerTree() {
     ui->tables_tree->expand(rootIndex);
 }
 
-void MainWindow::printOutput(const QString& text) {
+void MainWindow::printOutput(const QString& text,const bool& focus) {
     ui->outputText->append(text);
     QScrollBar *bar = ui->outputText->verticalScrollBar();
+    if(focus)
+        ui->bottomTabs->setCurrentWidget(ui->error_tab);
     bar->setValue(bar->maximum());
 }
 
@@ -161,7 +163,7 @@ void MainWindow::populateResultsTable(const vector<Column>& cols, const vector<R
     ui->bottomTabs->setCurrentWidget(ui->result_tab);
     ui->resultText->setFocus();
     if (cols.empty()) {
-        printOutput("(0 column(s) returned)");
+        printOutput("(0 column(s) returned)",false);
         return;
     }
 
@@ -215,14 +217,14 @@ void MainWindow::populateResultsTable(const vector<Column>& cols, const vector<R
         html += "</tr>";
     }
 
-    html += "</table>";
+    html += "</table><br/><br/>";
     // Set the HTML content
     ui->resultText->append(html);
     // Scroll to top
     QScrollBar *bar = ui->resultText->verticalScrollBar();
     bar->setValue(0);
 
-    printOutput("(" + QString::number(rows.size()) + " row(s) selected)");
+    printOutput("(" + QString::number(rows.size()) + " row(s) selected)",false);
 }
 
 
