@@ -105,9 +105,12 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         
         // Perform join
         vector<Row> newJoinedRows;
+        vector<bool> rightRowMatched(joinTableRows.size(), false); // Track which right rows matched (for RIGHT JOIN)
+        
         for (const auto& leftRow : joinedRows) {
             bool matched = false;
-            for (const auto& rightRow : joinTableRows) {
+            for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                const auto& rightRow = joinTableRows[rightIdx];
                 if (leftRow.values[leftColIdx] == rightRow.values[rightColIdx]) {
                     // Merge rows
                     Row mergedRow;
@@ -117,10 +120,11 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     }
                     newJoinedRows.push_back(mergedRow);
                     matched = true;
+                    rightRowMatched[rightIdx] = true; // Mark this right row as matched
                 }
             }
             
-            // For LEFT JOIN, include unmatched rows
+            // For LEFT JOIN, include unmatched rows from left table
             if (!matched && join.joinType == "LEFT") {
                 Row mergedRow;
                 mergedRow.values = leftRow.values;
@@ -129,6 +133,24 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     mergedRow.values.emplace_back(DataType::STRING, "");
                 }
                 newJoinedRows.push_back(mergedRow);
+            }
+        }
+        
+        // For RIGHT JOIN, include unmatched rows from right table
+        if (join.joinType == "RIGHT") {
+            for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                if (!rightRowMatched[rightIdx]) {
+                    Row mergedRow;
+                    // Add NULL values for all left table columns
+                    for (size_t i = 0; i < allColumns.size(); ++i) {
+                        mergedRow.values.emplace_back(DataType::STRING, "");
+                    }
+                    // Add actual values from unmatched right row
+                    for (const auto& val : joinTableRows[rightIdx].values) {
+                        mergedRow.values.push_back(val);
+                    }
+                    newJoinedRows.push_back(mergedRow);
+                }
             }
         }
         
