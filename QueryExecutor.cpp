@@ -438,7 +438,8 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
         table->insertPartialRow(q->specifiedColumns, q->values);
     } else {
         // Insert all columns
-        table->insertRow(q->values);
+        if(!table->insertRow(q->values))
+            error("Error with keys");
     }
     
     // Save to CSV immediately
