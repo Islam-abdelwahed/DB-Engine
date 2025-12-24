@@ -424,6 +424,8 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
         return;
     }
 
+    bool success = false;
+    
     // If specific columns are specified, use insertPartialRow
     if (!q->specifiedColumns.empty()) {
         // Validate columns exist
@@ -433,10 +435,15 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
                 return;
             }
         }
-        table->insertPartialRow(q->specifiedColumns, q->values);
+        success = table->insertPartialRow(q->specifiedColumns, q->values, &db);
     } else {
         // Insert all columns
-        table->insertRow(q->values);
+        success = table->insertRow(q->values, &db);
+    }
+    
+    if (!success) {
+        error("Insert failed: Primary key constraint violation or foreign key constraint violation");
+        return;
     }
     
     // Save to CSV immediately
@@ -484,7 +491,12 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         }
     }
 
-    table->updateRows(q->where, q->newValues);
+    bool success = table->updateRows(q->where, q->newValues, &db);
+    
+    if (!success) {
+        error("Update failed: Primary key constraint violation or foreign key constraint violation");
+        return;
+    }
     
     // Save to CSV immediately
     std::string csvPath = "data/" + q->tableName + ".csv";
