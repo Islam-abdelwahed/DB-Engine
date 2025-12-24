@@ -10,6 +10,18 @@
 
 using namespace std;
 
+// Helper function to get type name as string
+static string getTypeName(DataType type) {
+    switch (type) {
+        case DataType::INTEGER: return "INTEGER";
+        case DataType::FLOAT: return "FLOAT";
+        case DataType::BOOLEAN: return "BOOLEAN";
+        case DataType::STRING: return "STRING";
+        case DataType::VARCHAR: return "VARCHAR";
+        case DataType::DATE: return "DATE";
+        default: return "UNKNOWN";
+    }
+}
 
 void QueryExecutor::execute(Query* q, Database& db) {
     if (!q) return;
@@ -239,22 +251,45 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         groupedRows.clear();
         groupedColumns.clear();
         
-        // Add GROUP BY columns first
-        for (const auto& colName : q->groupBy) {
-            for (const auto& col : allColumns) {
-                if (col.name == colName) {
-                    groupedColumns.push_back(col);
-                    break;
+        // If we have aggregates but explicit columns selected, use SELECT order
+        // Otherwise, GROUP BY columns first, then aggregates
+        if (!q->columns.empty() && q->columns[0] != "*") {
+            // User specified column order in SELECT - respect it
+            // First add non-aggregate columns from SELECT
+            for (const auto& colName : q->columns) {
+                for (const auto& col : allColumns) {
+                    if (col.name == colName) {
+                        groupedColumns.push_back(col);
+                        break;
+                    }
                 }
             }
-        }
-        
-        // Add aggregate result columns
-        for (const auto& agg : q->aggregates) {
-            Column aggCol;
-            aggCol.name = agg.alias;
-            aggCol.type = DataType::FLOAT; // Aggregates return numeric values
-            groupedColumns.push_back(aggCol);
+            
+            // Then add aggregate columns in SELECT order
+            for (const auto& agg : q->aggregates) {
+                Column aggCol;
+                aggCol.name = agg.alias;
+                aggCol.type = DataType::FLOAT;
+                groupedColumns.push_back(aggCol);
+            }
+        } else {
+            // No explicit SELECT columns, use default order: GROUP BY columns first
+            for (const auto& colName : q->groupBy) {
+                for (const auto& col : allColumns) {
+                    if (col.name == colName) {
+                        groupedColumns.push_back(col);
+                        break;
+                    }
+                }
+            }
+            
+            // Then add aggregate columns
+            for (const auto& agg : q->aggregates) {
+                Column aggCol;
+                aggCol.name = agg.alias;
+                aggCol.type = DataType::FLOAT;
+                groupedColumns.push_back(aggCol);
+            }
         }
         
         // Process each group
@@ -264,14 +299,42 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             
             Row resultRow;
             
-            // Add GROUP BY column values (from first row of group)
-            for (size_t idx : groupByIndices) {
-                if (idx < groupRows[0].values.size()) {
-                    resultRow.values.push_back(groupRows[0].values[idx]);
+            // Build row in the same order as groupedColumns
+            // If SELECT specified columns, follow that order
+            if (!q->columns.empty() && q->columns[0] != "*") {
+                // Process in SELECT order
+                for (const auto& col : groupedColumns) {
+                    bool isAggregate = false;
+                    
+                    // Check if this column is an aggregate
+                    for (const auto& agg : q->aggregates) {
+                        if (col.name == agg.alias) {
+                            isAggregate = true;
+                            // Calculate aggregate (will be added below)
+                            break;
+                        }
+                    }
+                    
+                    if (!isAggregate) {
+                        // It's a GROUP BY column, add its value
+                        for (size_t idx : groupByIndices) {
+                            if (allColumns[idx].name == col.name && idx < groupRows[0].values.size()) {
+                                resultRow.values.push_back(groupRows[0].values[idx]);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Default order: GROUP BY columns first
+                for (size_t idx : groupByIndices) {
+                    if (idx < groupRows[0].values.size()) {
+                        resultRow.values.push_back(groupRows[0].values[idx]);
+                    }
                 }
             }
             
-            // Calculate aggregate values
+            // Calculate and add aggregate values in order
             for (const auto& agg : q->aggregates) {
                 // Find column index for this aggregate (unless it's COUNT(*))
                 size_t colIdx = 0;
@@ -534,17 +597,50 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
 
     // If specific columns are specified, use insertPartialRow
     if (!q->specifiedColumns.empty()) {
-        // Validate columns exist
-        for (const auto& colName : q->specifiedColumns) {
-            if (table->getColumnIndex(colName) == static_cast<size_t>(-1)) {
-                error("Column not found: " + colName);
+        // Validate columns exist and types match
+        const auto& columns = table->getColumns();
+        for (size_t i = 0; i < q->specifiedColumns.size() && i < q->values.values.size(); ++i) {
+            size_t colIdx = table->getColumnIndex(q->specifiedColumns[i]);
+            if (colIdx == static_cast<size_t>(-1)) {
+                error("Column not found: " + q->specifiedColumns[i]);
+                return;
+            }
+            
+            // Validate type compatibility
+            if (!q->values.values[i].isValidForType(columns[colIdx].type)) {
+                error("Type mismatch for column '" + q->specifiedColumns[i] + 
+                      "': cannot insert value '" + q->values.values[i].data + 
+                      "' into " + getTypeName(columns[colIdx].type) + " column");
                 return;
             }
         }
-        table->insertPartialRow(q->specifiedColumns, q->values);
+        
+        if (!table->insertPartialRow(q->specifiedColumns, q->values)) {
+            error("Failed to insert row: constraint violation");
+            return;
+        }
     } else {
-        // Insert all columns
-        table->insertRow(q->values);
+        // Validate all column types match
+        const auto& columns = table->getColumns();
+        if (q->values.values.size() != columns.size()) {
+            error("Column count mismatch: expected " + to_string(columns.size()) + 
+                  ", got " + to_string(q->values.values.size()));
+            return;
+        }
+        
+        for (size_t i = 0; i < q->values.values.size(); ++i) {
+            if (!q->values.values[i].isValidForType(columns[i].type)) {
+                error("Type mismatch for column '" + columns[i].name + 
+                      "': cannot insert value '" + q->values.values[i].data + 
+                      "' into " + getTypeName(columns[i].type) + " column");
+                return;
+            }
+        }
+        
+        if (!table->insertRow(q->values)) {
+            error("Failed to insert row: constraint violation");
+            return;
+        }
     }
     
     // Save to CSV immediately
@@ -561,18 +657,28 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         return;
     }
 
-    // Validate SET columns exist
+    // Validate SET columns exist and types match
     const auto& columns = table->getColumns();
     for (const auto& pair : q->newValues) {
         bool found = false;
+        const Column* targetCol = nullptr;
         for (const auto& col : columns) {
             if (col.name == pair.first) {
                 found = true;
+                targetCol = &col;
                 break;
             }
         }
         if (!found) {
             error("Column not found: " + pair.first);
+            return;
+        }
+        
+        // Validate type compatibility
+        if (targetCol && !pair.second.isValidForType(targetCol->type)) {
+            error("Type mismatch for column '" + pair.first + 
+                  "': cannot update with value '" + pair.second.data + 
+                  "' into " + getTypeName(targetCol->type) + " column");
             return;
         }
     }

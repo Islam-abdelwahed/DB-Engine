@@ -92,6 +92,45 @@ void MainWindow::executeSQL(const QString& sql) {
             }
         }
     }
+    
+    // Check if multiple queries without proper semicolon separation
+    if (queries.size() > 1) {
+        // Ensure each query was properly terminated (except possibly the last one)
+        for (size_t i = 0; i < queries.size() - 1; ++i) {
+            // All but the last query must have been terminated with semicolon
+            // This is already guaranteed by our parsing above
+        }
+    } else if (queries.size() == 1) {
+        // Check if there are multiple SQL statements without semicolons
+        // by looking for multiple SQL keywords
+        string query = queries[0];
+        string upperQuery;
+        for (char c : query) upperQuery += toupper(c);
+        
+        int statementCount = 0;
+        vector<string> keywords = {"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP"};
+        size_t searchPos = 0;
+        
+        for (const auto& keyword : keywords) {
+            searchPos = 0;
+            while ((searchPos = upperQuery.find(keyword, searchPos)) != string::npos) {
+                // Check if it's at the start or preceded by whitespace
+                if (searchPos == 0 || isspace(upperQuery[searchPos - 1])) {
+                    // Check if followed by whitespace or end of string
+                    size_t endPos = searchPos + keyword.length();
+                    if (endPos >= upperQuery.length() || isspace(upperQuery[endPos]) || upperQuery[endPos] == '(') {
+                        statementCount++;
+                    }
+                }
+                searchPos += keyword.length();
+            }
+        }
+        
+        if (statementCount > 1) {
+            printError("Error: Multiple SQL statements detected without semicolon separator. Please use ';' between statements.");
+            return;
+        }
+    }
 
     // Execute each query
     for (const auto& query : queries) {
