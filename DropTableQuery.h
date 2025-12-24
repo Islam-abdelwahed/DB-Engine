@@ -2,10 +2,11 @@
 #pragma once
 #include "Query.h"
 #include <string>
+using namespace std;
 
 class DropTableQuery : public Query {
 public:
-    std::string tableName;
+    string tableName;
 
     DropTableQuery() { type = QueryType::DROP_TABLE; }
 };

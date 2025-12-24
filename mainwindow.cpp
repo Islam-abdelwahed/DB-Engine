@@ -118,21 +118,25 @@ void MainWindow::updateExplorerTree() {
     QStandardItem *rootItem = new QStandardItem("Database");
     rootItem->setEditable(false);
     for (const auto& name : database.getTableNames()) {
-        QStandardItem* parent = new QStandardItem(QString::fromStdString(name));
-
-        // Example child
-        // parent->appendRow(new QStandardItem("columns..."));
-
-        rootItem->appendRow(parent);
+        QStandardItem* table = new QStandardItem(QString::fromStdString(name));
+        for (const auto& col : (database.getTable(name)->getColumns()))
+        {
+            QStandardItem* column = new QStandardItem(QString::fromStdString(col.name));
+            column->setIcon(QIcon(":icons/column.png"));
+            table->appendRow(column);
+        }
+        table->setIcon(QIcon(":icons/table.png"));
+        rootItem->appendRow(table);
     }
     model->appendRow(rootItem);
     ui->tables_tree->setModel(model);
-
     // Enable tree decorations
     ui->tables_tree->setRootIsDecorated(true);
     ui->tables_tree->setItemsExpandable(true);
     ui->tables_tree->setExpandsOnDoubleClick(true);
-     ui->tables_tree->expandAll();
+    // Expand only the root item
+    QModelIndex rootIndex = model->indexFromItem(rootItem);
+    ui->tables_tree->expand(rootIndex);
 }
 
 void MainWindow::printOutput(const QString& text) {

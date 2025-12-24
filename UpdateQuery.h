@@ -5,12 +5,14 @@
 #include <map>
 #include "Value.h"
 #include "Condition.h"
+using namespace std;
+
 
 class UpdateQuery : public Query {
 public:
-    std::string tableName;
+    string tableName;
     Condition where;
-    std::map<std::string, Value> newValues;
+    map<string, Value> newValues;
 
     UpdateQuery() { type = QueryType::UPDATE; }
 };

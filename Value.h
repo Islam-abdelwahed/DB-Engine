@@ -1,6 +1,7 @@
 // include/Value.h
 #pragma once
 #include <string>
+using namespace std;
 
 enum class DataType {
     STRING,
@@ -8,45 +9,38 @@ enum class DataType {
     INTEGER,
     FLOAT,
     BOOLEAN,
+    DATE,
     UNKNOWN
 };
 
 class Value {
 public:
     DataType type;
-    std::string data;
+    string data;
 
     Value() : type(DataType::UNKNOWN) {}
-    Value(DataType t, const std::string& d) : type(t), data(d) {}
+    Value(DataType t, const string& d) : type(t), data(d) {}
 
     bool operator==(const Value& other) const {
-        // Compare data values, ignoring type for flexibility
-        // This allows comparing INTEGER column with STRING value from WHERE clause
+
         return data == other.data;
     }
 
-    // Add more operators if needed, e.g., <, > for sorting/conditions
     bool operator<(const Value& other) const {
-        // Try numeric comparison first
         try {
-            double thisNum = std::stod(data);
-            double otherNum = std::stod(other.data);
+            double thisNum = stod(data);
+            double otherNum = stod(other.data);
             return thisNum < otherNum;
         } catch (...) {
-            // Fall back to string comparison
             return data < other.data;
         }
     }
 
     bool operator>(const Value& other) const {
-        // Try numeric comparison first
-        try {
-            double thisNum = std::stod(data);
-            double otherNum = std::stod(other.data);
-            return thisNum > otherNum;
-        } catch (...) {
-            // Fall back to string comparison
-            return data > other.data;
-        }
+        return other.data < data;
+    }
+
+    bool operator!=(const Value& other) const {
+        return !(data==other.data);
     }
 };

@@ -1,17 +1,17 @@
 // src/Condition.cpp
 #include "Condition.h"
-#include <algorithm> // for find_if
+#include <algorithm>
+using namespace std;
 
-bool Condition::evaluate(const Row& r, const std::vector<Column>& columns) const {
-    // If no column specified (no WHERE clause), return true for all rows
+
+bool Condition::evaluate(const Row& r, const vector<Column>& columns) const {
     if (column.empty()) {
         return true;
     }
     
-    // Find column index
-    auto it = std::find_if(columns.begin(), columns.end(), [&](const Column& c) { return c.name == column; });
+    auto it = find_if(columns.begin(), columns.end(), [&](const Column& c) { return c.name == column; });
     if (it == columns.end()) return false;
-    size_t idx = std::distance(columns.begin(), it);
+    size_t idx = distance(columns.begin(), it);
 
     if (idx >= r.values.size()) return false;
     const Value& rowVal = r.values[idx];
@@ -22,7 +22,8 @@ bool Condition::evaluate(const Row& r, const std::vector<Column>& columns) const
         return rowVal > value;
     } else if (op == "<") {
         return rowVal < value;
+    }else if (op == "!=") {
+        return rowVal != value;
     }
-    // Add more operators as needed
     return false;
 }

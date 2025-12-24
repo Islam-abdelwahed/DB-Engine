@@ -5,30 +5,30 @@
 #include <filesystem> // C++17 for directory iteration
 #include <stdexcept>
 
-void Database::createTable(const std::string& name, const std::vector<Column>& cols) {
+void Database::createTable(const string& name, const vector<Column>& cols) {
     if (tables.find(name) != tables.end()) {
-        throw std::runtime_error("Table already exists: " + name);
+        throw runtime_error("Table already exists: " + name);
     }
     tables.emplace(name, Table(name, cols));
 }
 
-Table* Database::getTable(const std::string& name) {
+Table* Database::getTable(const string& name) {
     auto it = tables.find(name);
     if (it == tables.end()) return nullptr;
     return &it->second;
 }
 
-void Database::dropTable(const std::string& name) {
+void Database::dropTable(const string& name) {
     tables.erase(name);
-    std::string filePath = storagePath + "/" + name + ".csv";
-    std::remove(filePath.c_str());
+    string filePath = storagePath + "/" + name + ".csv";
+    remove(filePath.c_str());
 }
 
 void Database::loadAllTables() {
-    namespace fs = std::filesystem;
+    namespace fs = filesystem;
     for (const auto& entry : fs::directory_iterator(storagePath)) {
         if (entry.is_regular_file() && entry.path().extension() == ".csv") {
-            std::string tableName = entry.path().stem().string();
+            string tableName = entry.path().stem().string();
             Table table(tableName, {}); // Temp, will load columns
             table.loadFromCSV(entry.path().string());
             tables[tableName] = std::move(table);
@@ -36,8 +36,8 @@ void Database::loadAllTables() {
     }
 }
 
-std::vector<std::string> Database::getTableNames() const {
-    std::vector<std::string> names;
+vector<string> Database::getTableNames() const {
+    vector<string> names;
     names.reserve(tables.size());
 
     for (const auto& pair : tables) {
@@ -51,7 +51,7 @@ void Database::saveAllTables() {
     // Create directory if not exists
     _mkdir(storagePath.c_str());
     for (const auto& pair : tables) {
-        std::string filePath = storagePath + "/" + pair.first + ".csv";
+        string filePath = storagePath + "/" + pair.first + ".csv";
         pair.second.saveToCSV(filePath);
     }
 }

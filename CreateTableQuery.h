@@ -4,11 +4,12 @@
 #include "Column.h"
 #include <string>
 #include <vector>
+using namespace std;
 
 class CreateTableQuery : public Query {
 public:
-    std::string tableName;
-    std::vector<Column> columns;
+    string tableName;
+    vector<Column> columns;
 
     CreateTableQuery() { type = QueryType::CREATE_TABLE; }
 };

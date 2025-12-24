@@ -1,9 +1,10 @@
 // include/SortRule.h
 #pragma once
 #include <string>
+using namespace std;
 
 class SortRule {
 public:
-    std::string column;
+    string column;
     bool ascending;
 };

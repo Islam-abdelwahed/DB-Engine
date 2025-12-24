@@ -4,11 +4,14 @@
 #include "Value.h"
 #include "Row.h"
 #include "Column.h"
+using namespace std;
+
+
 class Condition {
 public:
-    std::string column;
-    std::string op;
+    string column;
+    string op;
     Value value;
 
-    bool evaluate(const Row& r, const std::vector<Column>& columns) const;
+    bool evaluate(const Row& r, const vector<Column>& columns) const;
 };

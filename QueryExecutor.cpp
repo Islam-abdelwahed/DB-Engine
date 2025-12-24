@@ -59,11 +59,11 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
     }
 
-    std::vector<Row> selected = table->selectRows(q->where);
+    vector<Row> selected = table->selectRows(q->where);
 
     // Handle JOINs
-    std::vector<Column> allColumns = table->getColumns();
-    std::vector<Row> joinedRows = selected;
+    vector<Column> allColumns = table->getColumns();
+    vector<Row> joinedRows = selected;
     
     for (const auto& join : q->joins) {
         Table* joinTable = db.getTable(join.tableName);
@@ -102,7 +102,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
         
         // Perform join
-        std::vector<Row> newJoinedRows;
+        vector<Row> newJoinedRows;
         for (const auto& leftRow : joinedRows) {
             bool matched = false;
             for (const auto& rightRow : joinTableRows) {
@@ -138,8 +138,8 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     }
 
     // Handle GROUP BY
-    std::vector<Row> groupedRows = joinedRows;
-    std::vector<Column> groupedColumns = allColumns;
+    vector<Row> groupedRows = joinedRows;
+    vector<Column> groupedColumns = allColumns;
     
     if (!q->groupBy.empty() || !q->aggregates.empty()) {
         // Validate GROUP BY columns exist
@@ -175,7 +175,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
         
         // Find group by column indices
-        std::vector<size_t> groupByIndices;
+        vector<size_t> groupByIndices;
         for (const auto& colName : q->groupBy) {
             for (size_t i = 0; i < allColumns.size(); ++i) {
                 if (allColumns[i].name == colName) {
@@ -186,9 +186,9 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
         
         // Group rows by the specified columns
-        std::map<std::string, std::vector<Row>> groups;
+        map<string, vector<Row>> groups;
         for (const auto& row : joinedRows) {
-            std::string groupKey;
+            string groupKey;
             for (size_t idx : groupByIndices) {
                 if (idx < row.values.size()) {
                     groupKey += row.values[idx].data + "|";
@@ -275,7 +275,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     for (const auto& row : groupRows) {
                         if (colIdx < row.values.size()) {
                             try {
-                                double val = std::stod(row.values[colIdx].data);
+                                double val = stod(row.values[colIdx].data);
                                 
                                 if (agg.function == "SUM" || agg.function == "AVG") {
                                     sum += val;
@@ -309,7 +309,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     }
                 }
                 
-                resultRow.values.emplace_back(DataType::FLOAT, std::to_string(result));
+                resultRow.values.emplace_back(DataType::FLOAT, to_string(result));
             }
             
             groupedRows.push_back(resultRow);
@@ -336,7 +336,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             }
         }
         
-        std::vector<size_t> orderByIndices;
+        vector<size_t> orderByIndices;
         for (const auto& rule : q->orderBy) {
             for (size_t i = 0; i < allColumns.size(); ++i) {
                 if (allColumns[i].name == rule.column) {
@@ -346,7 +346,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             }
         }
         
-        std::sort(groupedRows.begin(), groupedRows.end(), [&](const Row& a, const Row& b) {
+        sort(groupedRows.begin(), groupedRows.end(), [&](const Row& a, const Row& b) {
             for (size_t i = 0; i < q->orderBy.size() && i < orderByIndices.size(); ++i) {
                 size_t idx = orderByIndices[i];
                 if (idx >= a.values.size() || idx >= b.values.size()) continue;
@@ -364,8 +364,8 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     }
 
     // Handle column projection
-    std::vector<Column> resultColumns;
-    std::vector<Row> projectedRows;
+    vector<Column> resultColumns;
+    vector<Row> projectedRows;
     
     // Check if selecting all columns (*)
     bool selectAll = (q->columns.size() == 1 && q->columns[0] == "*" && q->aggregates.empty());
@@ -381,13 +381,13 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     } else {
         // Project only requested columns (no GROUP BY/aggregates)
         // Build column index mapping
-        std::map<std::string, size_t> columnIndexMap;
+        map<string, size_t> columnIndexMap;
         for (size_t i = 0; i < allColumns.size(); ++i) {
             columnIndexMap[allColumns[i].name] = i;
         }
         
         // Get indices of requested columns
-        std::vector<size_t> selectedIndices;
+        vector<size_t> selectedIndices;
         for (const auto& colName : q->columns) {
             auto it = columnIndexMap.find(colName);
             if (it != columnIndexMap.end()) {
@@ -414,7 +414,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     // Call the result callback if set
     resultTable(resultColumns, projectedRows);
 
-    output("(" + std::to_string(projectedRows.size()) + " row(s) selected)");
+    output("(" + to_string(projectedRows.size()) + " row(s) selected)");
 }
 
 void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
@@ -440,7 +440,7 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
     }
     
     // Save to CSV immediately
-    // std::string csvPath = "data/" + q->tableName + ".csv";
+    // string csvPath = "data/" + q->tableName + ".csv";
     // table->saveToCSV(csvPath);
     
     output("1 row inserted");
@@ -487,7 +487,7 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
     table->updateRows(q->where, q->newValues);
     
     // Save to CSV immediately
-    std::string csvPath = "data/" + q->tableName + ".csv";
+    string csvPath = "data/" + q->tableName + ".csv";
     table->saveToCSV(csvPath);
     
     output("Rows updated");
@@ -519,7 +519,7 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
     table->deleteRows(q->where);
     
     // Save to CSV immediately
-    std::string csvPath = "data/" + q->tableName + ".csv";
+    string csvPath = "data/" + q->tableName + ".csv";
     table->saveToCSV(csvPath);
     
     output("Rows deleted");

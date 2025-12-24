@@ -3,10 +3,11 @@
 #include "Query.h"
 #include <string>
 #include "Condition.h"
+using namespace std;
 
 class DeleteQuery : public Query {
 public:
-    std::string tableName;
+    string tableName;
     Condition where;
 
     DeleteQuery() { type = QueryType::DELETE; }

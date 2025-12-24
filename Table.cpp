@@ -8,7 +8,7 @@ Table::Table() {
     rebuildIndexMap();
 }
 
-Table::Table(const std::string& n, const std::vector<Column>& cols) : name(n), columns(cols) {
+Table::Table(const string& n, const vector<Column>& cols) : name(n), columns(cols) {
     rebuildIndexMap();
 }
 
@@ -24,7 +24,7 @@ void Table::insertRow(const Row& r) {
     rows.push_back(r);
 }
 
-void Table::insertPartialRow(const std::vector<std::string>& columnNames, const Row& values) {
+void Table::insertPartialRow(const vector<string>& columnNames, const Row& values) {
     Row fullRow;
     fullRow.values.resize(columns.size());
     
@@ -44,7 +44,7 @@ void Table::insertPartialRow(const std::vector<std::string>& columnNames, const 
     rows.push_back(fullRow);
 }
 
-size_t Table::getColumnIndex(const std::string& columnName) const {
+size_t Table::getColumnIndex(const string& columnName) const {
     auto it = columnIndexMap.find(columnName);
     if (it != columnIndexMap.end()) {
         return it->second;
@@ -52,8 +52,8 @@ size_t Table::getColumnIndex(const std::string& columnName) const {
     return static_cast<size_t>(-1); // Not found
 }
 
-std::vector<Row> Table::selectRows(const Condition& c) const {
-    std::vector<Row> result;
+vector<Row> Table::selectRows(const Condition& c) const {
+    vector<Row> result;
     for (const auto& row : rows) {
         if (c.evaluate(row, columns)) {
             result.push_back(row);
@@ -62,7 +62,7 @@ std::vector<Row> Table::selectRows(const Condition& c) const {
     return result;
 }
 
-void Table::updateRows(const Condition& c, const std::map<std::string, Value>& nv) {
+void Table::updateRows(const Condition& c, const map<string, Value>& nv) {
     for (auto& row : rows) {
         if (c.evaluate(row, columns)) {
             for (const auto& pair : nv) {
@@ -76,32 +76,32 @@ void Table::updateRows(const Condition& c, const std::map<std::string, Value>& n
 }
 
 void Table::deleteRows(const Condition& c) {
-    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const Row& row) {
+    rows.erase(remove_if(rows.begin(), rows.end(), [&](const Row& row) {
         return c.evaluate(row, columns);
     }), rows.end());
 }
 
-void Table::loadFromCSV(const std::string& filePath) {
-    std::ifstream file(filePath);
+void Table::loadFromCSV(const string& filePath) {
+    ifstream file(filePath);
     if (!file.is_open()) return;
 
-    std::string line;
+    string line;
     // Read column names
-    if (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string colName;
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string colName;
         columns.clear();
-        while (std::getline(ss, colName, ',')) {
+        while (getline(ss, colName, ',')) {
             columns.emplace_back(colName, DataType::STRING); // Assume STRING for now
         }
     }
 
-    // Read types if present (current code has types in second line)
-    if (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string typeStr;
+    // Read types if present
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string typeStr;
         size_t idx = 0;
-        while (std::getline(ss, typeStr, ',') && idx < columns.size()) {
+        while (getline(ss, typeStr, ',') && idx < columns.size()) {
             if (typeStr == "INT") columns[idx].type = DataType::INTEGER;
             else if (typeStr == "VARCHAR") columns[idx].type = DataType::VARCHAR;
             else if (typeStr == "FLOAT") columns[idx].type = DataType::FLOAT;
@@ -115,12 +115,12 @@ void Table::loadFromCSV(const std::string& filePath) {
 
     // Read rows
     rows.clear();
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string valStr;
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string valStr;
         Row row;
         size_t idx = 0;
-        while (std::getline(ss, valStr, ',')) {
+        while (getline(ss, valStr, ',')) {
             if (idx < columns.size()) {
                 row.values.emplace_back(columns[idx].type, valStr);
             }
@@ -130,8 +130,8 @@ void Table::loadFromCSV(const std::string& filePath) {
     }
 }
 
-void Table::saveToCSV(const std::string& filePath) const {
-    std::ofstream file(filePath);
+void Table::saveToCSV(const string& filePath) const {
+    ofstream file(filePath);
     if (!file.is_open()) return;
 
     // Write column names
@@ -143,7 +143,7 @@ void Table::saveToCSV(const std::string& filePath) const {
 
     // Write types
     for (size_t i = 0; i < columns.size(); ++i) {
-        std::string typeStr;
+        string typeStr;
         switch (columns[i].type) {
             case DataType::INTEGER: typeStr = "INT"; break;
             case DataType::VARCHAR: typeStr = "VARCHAR"; break;
