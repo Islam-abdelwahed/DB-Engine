@@ -237,6 +237,50 @@ void Table::loadFromCSV(const string& filePath) {
         }
     }
 
+    // Read primary key flags
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string pkFlag;
+        size_t idx = 0;
+        while (getline(ss, pkFlag, ',') && idx < columns.size()) {
+            columns[idx].isPrimaryKey = (pkFlag == "1");
+            ++idx;
+        }
+    }
+
+    // Read foreign key flags
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string fkFlag;
+        size_t idx = 0;
+        while (getline(ss, fkFlag, ',') && idx < columns.size()) {
+            columns[idx].isForeignKey = (fkFlag == "1");
+            ++idx;
+        }
+    }
+
+    // Read foreign table names
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string fTable;
+        size_t idx = 0;
+        while (getline(ss, fTable, ',') && idx < columns.size()) {
+            columns[idx].foreignTable = fTable;
+            ++idx;
+        }
+    }
+
+    // Read foreign column names
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string fColumn;
+        size_t idx = 0;
+        while (getline(ss, fColumn, ',') && idx < columns.size()) {
+            columns[idx].foreignColumn = fColumn;
+            ++idx;
+        }
+    }
+
     rebuildIndexMap();
 
     // Read rows
@@ -278,6 +322,34 @@ void Table::saveToCSV(const string& filePath) const {
             default: typeStr = "STRING";
         }
         file << typeStr;
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write primary key flags
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << (columns[i].isPrimaryKey ? "1" : "0");
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write foreign key flags
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << (columns[i].isForeignKey ? "1" : "0");
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write foreign table names
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << columns[i].foreignTable;
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write foreign column names
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << columns[i].foreignColumn;
         if (i < columns.size() - 1) file << ",";
     }
     file << "\n";
