@@ -187,9 +187,21 @@ Query* Parser::parse(const string& sqlText) {
             fromEnd = sqlText.length();
         }
         
-        // Extract table name
+        // Extract table name and handle alias
         string tablePart = trim(sqlText.substr(fromPos + 4, fromEnd - fromPos - 4));
-        q->tableName = tablePart;
+        
+        // Create a map to store table aliases for resolving references
+        map<string, string> tableAliases; // alias -> actual table name
+        
+        // Parse table name and alias (e.g., "ahmed a" -> table: "ahmed", alias: "a")
+        auto tableParts = split(tablePart, ' ');
+        if (tableParts.size() >= 2) {
+            q->tableName = tableParts[0];
+            tableAliases[tableParts[1]] = tableParts[0]; // alias -> table
+        } else {
+            q->tableName = tablePart;
+            tableAliases[tablePart] = tablePart; // table can reference itself
+        }
 
         // Parse JOIN clauses
         size_t currentPos = fromEnd;
@@ -226,7 +238,15 @@ Query* Parser::parse(const string& sqlText) {
                     joinTablePart = trim(joinTablePart.substr(5));
                 }
                 
-                join.tableName = joinTablePart;
+                // Parse table name and alias (e.g., "ali l" -> table: "ali", alias: "l")
+                auto joinTableParts = split(joinTablePart, ' ');
+                if (joinTableParts.size() >= 2) {
+                    join.tableName = joinTableParts[0];
+                    tableAliases[joinTableParts[1]] = joinTableParts[0]; // alias -> table
+                } else {
+                    join.tableName = joinTablePart;
+                    tableAliases[joinTablePart] = joinTablePart; // table can reference itself
+                }
                 
                 // Find next clause to determine end of ON
                 size_t onEnd = string::npos;
@@ -239,14 +259,16 @@ Query* Parser::parse(const string& sqlText) {
                 }
                 if (onEnd == string::npos) onEnd = sqlText.length();
                 
-                // Parse ON condition (table1.col = table2.col)
-                string onClause = trim(sqlText.substr(onPos + 2, onEnd - onPos - 2));
-                size_t eqPos = onClause.find('=');
+                // Parse ON condition (e.g., "a.id = l.id")
+                string onPart = trim(sqlText.substr(onPos + 2, onEnd - onPos - 2));
+                
+                // Find the equals sign
+                size_t eqPos = onPart.find('=');
                 if (eqPos != string::npos) {
-                    string leftSide = trim(onClause.substr(0, eqPos));
-                    string rightSide = trim(onClause.substr(eqPos + 1));
+                    string leftSide = trim(onPart.substr(0, eqPos));
+                    string rightSide = trim(onPart.substr(eqPos + 1));
                     
-                    // Extract column names (may include table prefix)
+                    // Parse left side (could be table.column or alias.column)
                     size_t dotPos = leftSide.find('.');
                     if (dotPos != string::npos) {
                         join.leftColumn = trim(leftSide.substr(dotPos + 1));
@@ -254,6 +276,7 @@ Query* Parser::parse(const string& sqlText) {
                         join.leftColumn = leftSide;
                     }
                     
+                    // Parse right side (could be table.column or alias.column)
                     dotPos = rightSide.find('.');
                     if (dotPos != string::npos) {
                         join.rightColumn = trim(rightSide.substr(dotPos + 1));
