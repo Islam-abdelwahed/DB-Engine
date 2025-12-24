@@ -8,10 +8,11 @@ public:
     string name;
     DataType type;
     bool isPrimaryKey;
+    bool isUnique;
     bool isForeignKey;
     string foreignTable;
     string foreignColumn;
 
-    Column() : type(DataType::UNKNOWN), isPrimaryKey(false), isForeignKey(false) {}
-    Column(const string& n, DataType t) : name(n), type(t), isPrimaryKey(false), isForeignKey(false) {}
+    Column() : type(DataType::UNKNOWN), isPrimaryKey(false), isUnique(false), isForeignKey(false) {}
+    Column(const string& n, DataType t) : name(n), type(t), isPrimaryKey(false), isUnique(false), isForeignKey(false) {}
 };

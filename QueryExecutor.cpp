@@ -647,13 +647,31 @@ void QueryExecutor::executeCreateTable(CreateTableQuery* q, Database& db) {
 }
 
 void QueryExecutor::executeDropTable(DropTableQuery* q, Database& db) {
-    // Check if table exists
-    if (!db.getTable(q->tableName)) {
-        error("Table not found: " + q->tableName);
-        return;
-    }
+    int droppedCount = 0;
+    
+    for (const auto& tableName : q->tableNames) {
+        // Check if table exists
+        if (!db.getTable(tableName)) {
+            if (!q->ifExists) {
+                error("Table not found: " + tableName);
+                return;
+            }
+            // If IF EXISTS is specified, silently skip non-existent tables
+            continue;
+        }
 
-    db.dropTable(q->tableName);
-    output("Table '" + q->tableName + "' dropped successfully");
-    tree();
+        db.dropTable(tableName);
+        droppedCount++;
+    }
+    
+    if (droppedCount > 0) {
+        if (droppedCount == 1) {
+            output("Table '" + q->tableNames[0] + "' dropped successfully");
+        } else {
+            output(to_string(droppedCount) + " tables dropped successfully");
+        }
+        tree();
+    } else if (q->ifExists) {
+        output("No tables to drop");
+    }
 }

@@ -44,6 +44,56 @@ string stripQuotes(string value) {
     return value;
 }
 
+// Infer data type from value string
+DataType inferDataType(const string& value) {
+    string trimmedValue = trim(value);
+    
+    // Check if it's quoted (string)
+    if (trimmedValue.length() >= 2 && 
+        ((trimmedValue.front() == '\'' && trimmedValue.back() == '\'') || 
+         (trimmedValue.front() == '"' && trimmedValue.back() == '"'))) {
+        return DataType::STRING;
+    }
+    
+    // Check if it's a number
+    if (!trimmedValue.empty()) {
+        bool hasDecimal = false;
+        bool isNumber = true;
+        size_t start = 0;
+        
+        // Handle negative numbers
+        if (trimmedValue[0] == '-' || trimmedValue[0] == '+') {
+            start = 1;
+        }
+        
+        for (size_t i = start; i < trimmedValue.length(); ++i) {
+            if (trimmedValue[i] == '.') {
+                if (hasDecimal) {
+                    isNumber = false;
+                    break;
+                }
+                hasDecimal = true;
+            } else if (!isdigit(trimmedValue[i])) {
+                isNumber = false;
+                break;
+            }
+        }
+        
+        if (isNumber && trimmedValue.length() > start) {
+            return hasDecimal ? DataType::FLOAT : DataType::INTEGER;
+        }
+    }
+    
+    // Check for boolean
+    string upper = toUpper(trimmedValue);
+    if (upper == "TRUE" || upper == "FALSE" || upper == "1" || upper == "0") {
+        return DataType::BOOLEAN;
+    }
+    
+    // Default to string
+    return DataType::STRING;
+}
+
 // Validate SQL identifier (table/column name)
 bool isValidIdentifier(const string& name) {
     if (name.empty()) return false;
@@ -80,11 +130,55 @@ bool isValidDataType(const string& typeStr) {
             upper == "TEXT");
 }
 
-// Parse condition from WHERE clause (simple column op value)
+// Parse condition from WHERE clause with AND/OR support
 Condition parseCondition(const string& wherePart) {
+    string wherePartTrimmed = trim(wherePart);
+    string wherePartUpper = toUpper(wherePartTrimmed);
+    
+    // Check for OR first (lower precedence)
+    size_t orPos = wherePartUpper.find(" OR ");
+    if (orPos != string::npos) {
+        Condition c;
+        c.logicalOp = LogicalOperator::OR;
+        
+        string leftPart = trim(wherePart.substr(0, orPos));
+        string rightPart = trim(wherePart.substr(orPos + 4));
+        
+        c.left = make_unique<Condition>(parseCondition(leftPart));
+        c.right = make_unique<Condition>(parseCondition(rightPart));
+        
+        return c;
+    }
+    
+    // Check for AND (higher precedence)
+    size_t andPos = wherePartUpper.find(" AND ");
+    if (andPos != string::npos) {
+        Condition c;
+        c.logicalOp = LogicalOperator::AND;
+        
+        string leftPart = trim(wherePart.substr(0, andPos));
+        string rightPart = trim(wherePart.substr(andPos + 5));
+        
+        c.left = make_unique<Condition>(parseCondition(leftPart));
+        c.right = make_unique<Condition>(parseCondition(rightPart));
+        
+        return c;
+    }
+    
+    // Parse simple condition (column op value)
     Condition c;
+    c.logicalOp = LogicalOperator::NONE;
+    
     string opStr = "="; // Default
-    size_t opPos = wherePart.find('=');
+    size_t opPos = wherePart.find("!=");
+    if (opPos != string::npos) {
+        opStr = "!=";
+    } else {
+        opPos = wherePart.find('=');
+        if (opPos != string::npos) {
+            opStr = "=";
+        }
+    }
     if (opPos == string::npos) {
         opPos = wherePart.find('>');
         if (opPos != string::npos) opStr = ">";
@@ -93,13 +187,13 @@ Condition parseCondition(const string& wherePart) {
         opPos = wherePart.find('<');
         if (opPos != string::npos) opStr = "<";
     }
-    // Add more ops
 
     if (opPos != string::npos) {
         c.column = trim(wherePart.substr(0, opPos));
         c.op = opStr;
         string valStr = trim(wherePart.substr(opPos + opStr.length()));
-        c.value = Value(DataType::STRING, stripQuotes(valStr)); // Assume STRING
+        DataType inferredType = inferDataType(valStr);
+        c.value = Value(inferredType, stripQuotes(valStr));
     }
     return c;
 }
@@ -124,6 +218,13 @@ Query* Parser::parse(const string& sqlText) {
         }
 
         string columnsPart = trim(sqlText.substr(6, fromPos - 6));
+        
+        // Validate that columns part is not empty
+        if (columnsPart.empty()) {
+            delete q;
+            return nullptr; // Invalid: SELECT without columns
+        }
+        
         if (columnsPart == "*") {
             q->columns.push_back("*");
         } else {
@@ -389,7 +490,9 @@ Query* Parser::parse(const string& sqlText) {
         string valuesPart = sqlText.substr(openParen + 1, closeParen - openParen - 1);
         auto valueStrs = split(valuesPart, ',');
         for (const auto& vs : valueStrs) {
-            q->values.values.emplace_back(DataType::STRING, stripQuotes(vs));
+            string trimmedVal = trim(vs);
+            DataType inferredType = inferDataType(trimmedVal);
+            q->values.values.emplace_back(inferredType, stripQuotes(trimmedVal));
         }
 
         return q;
@@ -415,12 +518,16 @@ Query* Parser::parse(const string& sqlText) {
             setPart = trim(sqlText.substr(setPos + 3));
         }
 
-        // Parse set: assume single column=value
-        size_t eqPos = setPart.find('=');
-        if (eqPos != string::npos) {
-            string col = trim(setPart.substr(0, eqPos));
-            string val = stripQuotes(trim(setPart.substr(eqPos + 1)));
-            q->newValues[col] = Value(DataType::STRING, val);
+        // Parse SET clause: support multiple column=value pairs separated by commas
+        auto assignments = split(setPart, ',');
+        for (const auto& assignment : assignments) {
+            size_t eqPos = assignment.find('=');
+            if (eqPos != string::npos) {
+                string col = trim(assignment.substr(0, eqPos));
+                string valStr = trim(assignment.substr(eqPos + 1));
+                DataType inferredType = inferDataType(valStr);
+                q->newValues[col] = Value(inferredType, stripQuotes(valStr));
+            }
         }
 
         return q;
@@ -513,6 +620,11 @@ Query* Parser::parse(const string& sqlText) {
                     col.isPrimaryKey = true;
                 }
                 
+                // Check for UNIQUE constraint
+                if (defUpper.find("UNIQUE") != string::npos) {
+                    col.isUnique = true;
+                }
+                
                 // Check for FOREIGN KEY (REFERENCES table(column))
                 size_t refPos = defUpper.find("REFERENCES");
                 if (refPos != string::npos) {
@@ -557,9 +669,32 @@ Query* Parser::parse(const string& sqlText) {
             return nullptr;
         }
 
-        q->tableName = trim(sqlText.substr(tablePos + 5));
+        // Check for IF EXISTS
+        size_t ifExistsPos = upperQuery.find("IF EXISTS", tablePos);
+        string tablesPart;
         
-        if (q->tableName.empty()) {
+        if (ifExistsPos != string::npos && ifExistsPos > tablePos) {
+            q->ifExists = true;
+            tablesPart = trim(sqlText.substr(ifExistsPos + 9)); // After "IF EXISTS"
+        } else {
+            tablesPart = trim(sqlText.substr(tablePos + 5)); // After "TABLE"
+        }
+        
+        if (tablesPart.empty()) {
+            delete q;
+            return nullptr;
+        }
+
+        // Parse multiple table names (comma-separated)
+        auto tableNames = split(tablesPart, ',');
+        for (const auto& tableName : tableNames) {
+            string trimmedName = trim(tableName);
+            if (!trimmedName.empty()) {
+                q->tableNames.push_back(trimmedName);
+            }
+        }
+        
+        if (q->tableNames.empty()) {
             delete q;
             return nullptr;
         }

@@ -81,12 +81,37 @@ bool Table::validateForeignKeys(const Row& r, Database* db) const {
     return true; // All foreign keys are valid
 }
 
+bool Table::validateUniqueConstraints(const Row& r, size_t excludeRowIdx) const {
+    // Check each column that has UNIQUE constraint
+    for (size_t i = 0; i < columns.size(); ++i) {
+        if (columns[i].isUnique || columns[i].isPrimaryKey) {
+            // Check if this value already exists in existing rows
+            for (size_t rowIdx = 0; rowIdx < rows.size(); ++rowIdx) {
+                // Skip the row being updated
+                if (rowIdx == excludeRowIdx) continue;
+                
+                if (i < r.values.size() && i < rows[rowIdx].values.size()) {
+                    // Skip NULL values (NULL is unique)
+                    if (r.values[i].isNull || rows[rowIdx].values[i].isNull) {
+                        continue;
+                    }
+                    
+                    if (rows[rowIdx].values[i].data == r.values[i].data) {
+                        return false; // Duplicate unique value found
+                    }
+                }
+            }
+        }
+    }
+    return true; // No duplicates found
+}
+
 bool Table::insertRow(const Row& r, Database* db) {
     if (r.values.size() != columns.size()) return false; // Error handling
     
-    // Validate primary key uniqueness
-    if (!validatePrimaryKey(r)) {
-        return false; // Duplicate primary key
+    // Validate unique constraints (including primary key)
+    if (!validateUniqueConstraints(r, static_cast<size_t>(-1))) {
+        return false; // Duplicate unique/primary key
     }
     
     // Validate foreign key constraints
@@ -115,9 +140,9 @@ bool Table::insertPartialRow(const vector<string>& columnNames, const Row& value
         }
     }
     
-    // Validate primary key uniqueness
-    if (!validatePrimaryKey(fullRow)) {
-        return false; // Duplicate primary key
+    // Validate unique constraints (including primary key)
+    if (!validateUniqueConstraints(fullRow, static_cast<size_t>(-1))) {
+        return false; // Duplicate unique/primary key
     }
     
     // Validate foreign key constraints
@@ -174,17 +199,9 @@ bool Table::updateRows(const Condition& c, const map<string, Value>& nv, Databas
         const Row& updatedRow = updatedRows[i];
         size_t originalIdx = matchingIndices[i];
         
-        // Check primary key uniqueness (excluding the row being updated)
-        for (size_t colIdx = 0; colIdx < columns.size(); ++colIdx) {
-            if (columns[colIdx].isPrimaryKey) {
-                for (size_t rowIdx = 0; rowIdx < rows.size(); ++rowIdx) {
-                    if (rowIdx != originalIdx && colIdx < updatedRow.values.size() && colIdx < rows[rowIdx].values.size()) {
-                        if (rows[rowIdx].values[colIdx].data == updatedRow.values[colIdx].data) {
-                            return false; // Duplicate primary key
-                        }
-                    }
-                }
-            }
+        // Check unique constraints (including primary key)
+        if (!validateUniqueConstraints(updatedRow, originalIdx)) {
+            return false; // Duplicate unique/primary key
         }
         
         // Validate foreign keys
@@ -244,6 +261,17 @@ void Table::loadFromCSV(const string& filePath) {
         size_t idx = 0;
         while (getline(ss, pkFlag, ',') && idx < columns.size()) {
             columns[idx].isPrimaryKey = (pkFlag == "1");
+            ++idx;
+        }
+    }
+
+    // Read unique flags
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string uniqueFlag;
+        size_t idx = 0;
+        while (getline(ss, uniqueFlag, ',') && idx < columns.size()) {
+            columns[idx].isUnique = (uniqueFlag == "1");
             ++idx;
         }
     }
@@ -334,6 +362,13 @@ void Table::saveToCSV(const string& filePath) const {
     // Write primary key flags
     for (size_t i = 0; i < columns.size(); ++i) {
         file << (columns[i].isPrimaryKey ? "1" : "0");
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write unique flags
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << (columns[i].isUnique ? "1" : "0");
         if (i < columns.size() - 1) file << ",";
     }
     file << "\n";
