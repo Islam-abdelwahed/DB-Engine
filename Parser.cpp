@@ -197,11 +197,16 @@ Query* Parser::parse(const string& sqlText) {
         auto tableParts = split(tablePart, ' ');
         if (tableParts.size() >= 2) {
             q->tableName = tableParts[0];
+            q->tableAlias = tableParts[1];
             tableAliases[tableParts[1]] = tableParts[0]; // alias -> table
         } else {
             q->tableName = tablePart;
+            q->tableAlias = tablePart; // No separate alias
             tableAliases[tablePart] = tablePart; // table can reference itself
         }
+        
+        // Store table aliases in query for later use
+        q->tableAliases = tableAliases;
 
         // Parse JOIN clauses
         size_t currentPos = fromEnd;
@@ -243,9 +248,11 @@ Query* Parser::parse(const string& sqlText) {
                 if (joinTableParts.size() >= 2) {
                     join.tableName = joinTableParts[0];
                     tableAliases[joinTableParts[1]] = joinTableParts[0]; // alias -> table
+                    q->tableAliases[joinTableParts[1]] = joinTableParts[0]; // Update query's alias map
                 } else {
                     join.tableName = joinTablePart;
                     tableAliases[joinTablePart] = joinTablePart; // table can reference itself
+                    q->tableAliases[joinTablePart] = joinTablePart; // Update query's alias map
                 }
                 
                 // Find next clause to determine end of ON

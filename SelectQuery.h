@@ -3,6 +3,7 @@
 #include "Query.h"
 #include <vector>
 #include <string>
+#include <map>
 #include "Condition.h"
 #include "SortRule.h"
 using namespace std;
@@ -27,6 +28,8 @@ public:
     vector<string> columns;
     vector<AggregateFunction> aggregates; // Aggregate functions in SELECT
     string tableName;
+    string tableAlias; // Alias for main table
+    map<string, string> tableAliases; // alias -> actual table name (for all tables)
     Condition where;
     vector<string> groupBy;
     vector<SortRule> orderBy;
