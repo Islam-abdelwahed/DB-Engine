@@ -102,9 +102,9 @@ bool Table::insertPartialRow(const vector<string>& columnNames, const Row& value
     Row fullRow;
     fullRow.values.resize(columns.size());
     
-    // Initialize all values as empty strings with proper types
+    // Initialize all values as NULL with proper types
     for (size_t i = 0; i < columns.size(); ++i) {
-        fullRow.values[i] = Value(columns[i].type, "");
+        fullRow.values[i] = Value::createNull(columns[i].type);
     }
     
     // Fill in specified columns
@@ -292,7 +292,12 @@ void Table::loadFromCSV(const string& filePath) {
         size_t idx = 0;
         while (getline(ss, valStr, ',')) {
             if (idx < columns.size()) {
-                row.values.emplace_back(columns[idx].type, valStr);
+                // Check if value is "null" (case-insensitive)
+                if (valStr == "null" || valStr == "NULL") {
+                    row.values.push_back(Value::createNull(columns[idx].type));
+                } else {
+                    row.values.emplace_back(columns[idx].type, valStr);
+                }
             }
             ++idx;
         }
@@ -357,10 +362,12 @@ void Table::saveToCSV(const string& filePath) const {
     // Write rows
     for (const auto& row : rows) {
         for (size_t i = 0; i < row.values.size(); ++i) {
-            if((row.values[i].data)=="")
-                file<< "null";
-            else
-            file << row.values[i].data;
+            // Write "null" for NULL values
+            if (row.values[i].isNull) {
+                file << "null";
+            } else {
+                file << row.values[i].data;
+            }
             if (i < row.values.size() - 1) file << ",";
         }
         file << "\n";

@@ -18,13 +18,20 @@ bool Condition::evaluate(const Row& r, const vector<Column>& columns) const {
     if (idx >= r.values.size()) return false;
     const Value& rowVal = r.values[idx];
 
+    // Handle NULL comparisons:
+    // In SQL, NULL comparisons with =, !=, <, > always return false
+    // Use IS NULL or IS NOT NULL for NULL checks (not implemented here yet)
+    if (rowVal.isNull || value.isNull) {
+        return false; // NULL comparisons are always false in standard operators
+    }
+
     if (op == "=") {
         return rowVal == value;
     } else if (op == ">") {
         return rowVal > value;
     } else if (op == "<") {
         return rowVal < value;
-    }else if (op == "!=") {
+    } else if (op == "!=") {
         return rowVal != value;
     }
     return false;

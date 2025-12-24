@@ -111,7 +111,15 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             bool matched = false;
             for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
                 const auto& rightRow = joinTableRows[rightIdx];
-                if (leftRow.values[leftColIdx] == rightRow.values[rightColIdx]) {
+                
+                // For JOIN condition: handle NULL values properly
+                // Two NULL values don't match in SQL JOIN semantics
+                bool leftIsNull = (leftColIdx < leftRow.values.size() && leftRow.values[leftColIdx].isNull);
+                bool rightIsNull = (rightColIdx < rightRow.values.size() && rightRow.values[rightColIdx].isNull);
+                
+                // Only match if both are non-NULL and equal
+                if (!leftIsNull && !rightIsNull && 
+                    leftRow.values[leftColIdx].data == rightRow.values[rightColIdx].data) {
                     // Merge rows
                     Row mergedRow;
                     mergedRow.values = leftRow.values;
@@ -130,7 +138,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                 mergedRow.values = leftRow.values;
                 // Add NULL values for joined table columns
                 for (size_t i = 0; i < joinTableColumns.size(); ++i) {
-                    mergedRow.values.emplace_back(DataType::STRING, "");
+                    mergedRow.values.push_back(Value::createNull(joinTableColumns[i].type));
                 }
                 newJoinedRows.push_back(mergedRow);
             }
@@ -143,7 +151,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     Row mergedRow;
                     // Add NULL values for all left table columns
                     for (size_t i = 0; i < allColumns.size(); ++i) {
-                        mergedRow.values.emplace_back(DataType::STRING, "");
+                        mergedRow.values.push_back(Value::createNull(allColumns[i].type));
                     }
                     // Add actual values from unmatched right row
                     for (const auto& val : joinTableRows[rightIdx].values) {
@@ -404,22 +412,98 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         projectedRows = groupedRows;
     } else {
         // Project only requested columns (no GROUP BY/aggregates)
-        // Build column index mapping
+        // Build column index mapping with table prefix support
         map<string, size_t> columnIndexMap;
+        map<string, vector<size_t>> tableColumnMap; // table/alias -> list of column indices
+        
+        // Build maps for quick lookup
+        size_t currentTableColCount = table->getColumns().size();
+        
+        // Map main table columns
+        for (size_t i = 0; i < currentTableColCount; ++i) {
+            columnIndexMap[allColumns[i].name] = i;
+            tableColumnMap[q->tableName].push_back(i);
+            if (!q->tableAlias.empty()) {
+                tableColumnMap[q->tableAlias].push_back(i);
+            }
+        }
+        
+        // Map joined table columns
+        size_t colOffset = currentTableColCount;
+        for (const auto& join : q->joins) {
+            Table* joinTable = db.getTable(join.tableName);
+            if (joinTable) {
+                size_t joinColCount = joinTable->getColumns().size();
+                for (size_t i = 0; i < joinColCount; ++i) {
+                    size_t globalIdx = colOffset + i;
+                    columnIndexMap[allColumns[globalIdx].name] = globalIdx;
+                    tableColumnMap[join.tableName].push_back(globalIdx);
+                }
+                colOffset += joinColCount;
+            }
+        }
+        
+        // Also build a map for all columns
         for (size_t i = 0; i < allColumns.size(); ++i) {
             columnIndexMap[allColumns[i].name] = i;
         }
         
-        // Get indices of requested columns
+        // Get indices of requested columns, expanding alias.* patterns
         vector<size_t> selectedIndices;
         for (const auto& colName : q->columns) {
-            auto it = columnIndexMap.find(colName);
-            if (it != columnIndexMap.end()) {
-                selectedIndices.push_back(it->second);
-                resultColumns.push_back(allColumns[it->second]);
+            // Check if it's a wildcard pattern (alias.* or table.*)
+            size_t dotPos = colName.find('.');
+            if (dotPos != string::npos) {
+                string prefix = colName.substr(0, dotPos);
+                string suffix = colName.substr(dotPos + 1);
+                
+                if (suffix == "*") {
+                    // Expand table.* or alias.*
+                    auto it = tableColumnMap.find(prefix);
+                    if (it != tableColumnMap.end()) {
+                        // Add all columns from this table
+                        for (size_t idx : it->second) {
+                            selectedIndices.push_back(idx);
+                            resultColumns.push_back(allColumns[idx]);
+                        }
+                    } else {
+                        // Check if it's in tableAliases map
+                        auto aliasIt = q->tableAliases.find(prefix);
+                        if (aliasIt != q->tableAliases.end()) {
+                            // Look up by actual table name
+                            auto tableIt = tableColumnMap.find(aliasIt->second);
+                            if (tableIt != tableColumnMap.end()) {
+                                for (size_t idx : tableIt->second) {
+                                    selectedIndices.push_back(idx);
+                                    resultColumns.push_back(allColumns[idx]);
+                                }
+                            }
+                        } else {
+                            error("Table or alias not found: " + prefix);
+                            return;
+                        }
+                    }
+                } else {
+                    // It's table.column or alias.column - just use the column name
+                    auto it = columnIndexMap.find(suffix);
+                    if (it != columnIndexMap.end()) {
+                        selectedIndices.push_back(it->second);
+                        resultColumns.push_back(allColumns[it->second]);
+                    } else {
+                        error("Column not found: " + colName);
+                        return;
+                    }
+                }
             } else {
-                error("Column not found: " + colName);
-                return;
+                // Regular column name
+                auto it = columnIndexMap.find(colName);
+                if (it != columnIndexMap.end()) {
+                    selectedIndices.push_back(it->second);
+                    resultColumns.push_back(allColumns[it->second]);
+                } else {
+                    error("Column not found: " + colName);
+                    return;
+                }
             }
         }
         
