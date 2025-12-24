@@ -21,6 +21,7 @@ private:
 
     void rebuildIndexMap();
     bool validatePrimaryKey(const Row& r) const;
+    bool validateUniqueConstraints(const Row& r, size_t excludeRowIdx) const;
     bool validateForeignKeys(const Row& r, Database* db) const;
 
 public:
