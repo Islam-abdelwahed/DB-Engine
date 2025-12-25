@@ -47,7 +47,13 @@ bool Condition::evaluate(const Row& r, const vector<Column>& columns) const {
         return rowVal > value;
     } else if (op == "<") {
         return rowVal < value;
+    } else if (op == ">=") {
+        return rowVal > value || rowVal == value;
+    } else if (op == "<=") {
+        return rowVal < value || rowVal == value;
     } else if (op == "!=") {
+        return rowVal != value;
+    } else if (op == "<>") {
         return rowVal != value;
     }
     return false;
