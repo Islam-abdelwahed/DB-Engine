@@ -26,6 +26,15 @@ public:
     unique_ptr<Condition> right;
 
     Condition() : logicalOp(LogicalOperator::NONE) {}
+    
+    // Copy constructor for deep copy
+    Condition(const Condition& other);
+    
+    // Assignment operator
+    Condition& operator=(const Condition& other);
+    
+    // Resolve column names with aliases (e.g., "alias.column" -> "column")
+    void resolveColumnAlias(const string& tableAlias);
 
     bool evaluate(const Row& r, const vector<Column>& columns) const;
 };

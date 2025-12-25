@@ -781,16 +781,15 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         resolvedNewValues[actualColName] = pair.second;
     }
     
-    // Validate WHERE column exists (if specified)
+    // Resolve WHERE column aliases (modifies in place)
     Condition resolvedWhere = q->where;
-    if (!q->where.column.empty()) {
-        // Extract actual column name from WHERE clause
-        string actualColName = extractColumnName(q->where.column, q->tableAlias);
-        resolvedWhere.column = actualColName;
-        
+    resolvedWhere.resolveColumnAlias(q->tableAlias);
+    
+    // Validate WHERE column exists (if specified)
+    if (!resolvedWhere.column.empty()) {
         bool found = false;
         for (const auto& col : columns) {
-            if (col.name == actualColName) {
+            if (col.name == resolvedWhere.column) {
                 found = true;
                 break;
             }
@@ -817,17 +816,16 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
         return;
     }
 
-    // Validate WHERE column exists (if specified)
+    // Resolve WHERE column aliases (modifies in place)
     Condition resolvedWhere = q->where;
-    if (!q->where.column.empty()) {
-        // Extract actual column name from WHERE clause
-        string actualColName = extractColumnName(q->where.column, q->tableAlias);
-        resolvedWhere.column = actualColName;
-        
+    resolvedWhere.resolveColumnAlias(q->tableAlias);
+    
+    // Validate WHERE column exists (if specified)
+    if (!resolvedWhere.column.empty()) {
         const auto& columns = table->getColumns();
         bool found = false;
         for (const auto& col : columns) {
-            if (col.name == actualColName) {
+            if (col.name == resolvedWhere.column) {
                 found = true;
                 break;
             }
