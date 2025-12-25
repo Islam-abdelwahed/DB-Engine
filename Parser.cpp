@@ -236,31 +236,35 @@ Query* Parser::parse(const string& sqlText) {
                 
                 // Check if it's an aggregate function
                 bool isAggregate = false;
-                vector<string> aggFuncNames = {"SUM", "COUNT", "AVG", "MIN", "MAX"};
+
+                vector<string> aggFuncs = {"SUM", "COUNT", "AVG", "MIN", "MAX"};
                 
-                for (const auto& aggFunc : aggFuncNames) {
-                    // Check for aggregate function with proper spacing before parenthesis
-                    size_t funcPos = colUpper.find(aggFunc);
-                    if (funcPos != string::npos && hasProperSpacing(colUpper, aggFunc, funcPos)) {
-                        isAggregate = true;
-                        
-                        // Extract function name
-                        size_t openParen = colUpper.find('(');
-                        string funcName = colUpper.substr(0, openParen);
-                        
-                        // Extract column name inside parentheses
-                        size_t closeParen = colTrimmed.find(')');
-                        if (closeParen != string::npos) {
-                            string innerCol = trim(colTrimmed.substr(openParen + 1, closeParen - openParen - 1));
-                            
-                            AggregateFunction agg;
-                            agg.function = funcName;
-                            agg.column = innerCol; // Can be "*" for COUNT(*)
-                            agg.alias = colTrimmed; // Store original expression as alias
-                            
-                            q->aggregates.push_back(agg);
+                for (const auto& aggFunc : aggFuncs) {
+                    if (colUpper.find(aggFunc) == 0) {
+                        size_t openParen = colTrimmed.find('(');
+                        if (openParen != string::npos) {
+                            string between = trim(colTrimmed.substr(aggFunc.length(), openParen - aggFunc.length()));
+                            if (between.empty()) {
+                                isAggregate = true;
+                                
+                                // Extract function name
+                                string funcName = aggFunc;
+                                
+                                // Extract column name inside parentheses
+                                size_t closeParen = colTrimmed.find(')');
+                                if (closeParen != string::npos) {
+                                    string innerCol = trim(colTrimmed.substr(openParen + 1, closeParen - openParen - 1));
+                                    
+                                    AggregateFunction agg;
+                                    agg.function = funcName;
+                                    agg.column = innerCol; // Can be "*" for COUNT(*)
+                                    agg.alias = colTrimmed; // Store original expression as alias
+                                    
+                                    q->aggregates.push_back(agg);
+                                }
+                                break;
+                            }
                         }
-                        break;
                     }
                 }
                 

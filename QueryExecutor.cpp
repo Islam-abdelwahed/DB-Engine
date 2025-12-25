@@ -246,6 +246,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             
             groups[groupKey].push_back(row);
         }
+        groupedRows.clear();
         
         // Calculate aggregates for each group
         groupedRows.clear();
