@@ -540,7 +540,16 @@ Query* Parser::parse(const string& sqlText) {
         size_t setPos = upperQuery.find("SET");
         if (setPos == string::npos) { delete q; return nullptr; }
 
-        q->tableName = trim(sqlText.substr(6, setPos - 6));
+        // Extract table name and handle alias
+        string tablePart = trim(sqlText.substr(6, setPos - 6));
+        auto tableParts = split(tablePart, ' ');
+        if (tableParts.size() >= 2) {
+            q->tableName = tableParts[0];
+            q->tableAlias = tableParts[1];
+        } else {
+            q->tableName = tablePart;
+            q->tableAlias = tablePart; // No separate alias
+        }
 
         size_t wherePos = upperQuery.find("WHERE");
         string setPart;
@@ -576,12 +585,23 @@ Query* Parser::parse(const string& sqlText) {
         if (fromPos == string::npos) { delete q; return nullptr; }
 
         size_t wherePos = upperQuery.find("WHERE");
+        string tablePart;
         if (wherePos != string::npos) {
-            q->tableName = trim(sqlText.substr(fromPos + 4, wherePos - fromPos - 4));
+            tablePart = trim(sqlText.substr(fromPos + 4, wherePos - fromPos - 4));
             string wherePart = trim(sqlText.substr(wherePos + 5));
             q->where = parseCondition(wherePart);
         } else {
-            q->tableName = trim(sqlText.substr(fromPos + 4));
+            tablePart = trim(sqlText.substr(fromPos + 4));
+        }
+
+        // Extract table name and handle alias
+        auto tableParts = split(tablePart, ' ');
+        if (tableParts.size() >= 2) {
+            q->tableName = tableParts[0];
+            q->tableAlias = tableParts[1];
+        } else {
+            q->tableName = tablePart;
+            q->tableAlias = tablePart; // No separate alias
         }
 
         return q;

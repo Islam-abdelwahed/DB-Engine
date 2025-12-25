@@ -23,6 +23,25 @@ static string getTypeName(DataType type) {
     }
 }
 
+// Helper function to extract column name from qualified name (e.g., "alias.column" -> "column")
+static string extractColumnName(const string& colName, const string& tableAlias) {
+    size_t dotPos = colName.find('.');
+    if (dotPos != string::npos) {
+        // Has prefix (e.g., "alias.column")
+        string prefix = colName.substr(0, dotPos);
+        string suffix = colName.substr(dotPos + 1);
+        
+        // Check if prefix matches the table alias
+        if (prefix == tableAlias) {
+            return suffix; // Return just the column name
+        }
+        // If prefix doesn't match, return as is (will fail validation later)
+        return colName;
+    }
+    // No prefix, return as is
+    return colName;
+}
+
 void QueryExecutor::execute(Query* q, Database& db) {
     if (!q) return;
 
@@ -730,11 +749,16 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
 
     // Validate SET columns exist and types match
     const auto& columns = table->getColumns();
+    map<string, Value> resolvedNewValues; // Column name (without alias) -> Value
+    
     for (const auto& pair : q->newValues) {
+        // Extract actual column name (strip alias prefix if present)
+        string actualColName = extractColumnName(pair.first, q->tableAlias);
+        
         bool found = false;
         const Column* targetCol = nullptr;
         for (const auto& col : columns) {
-            if (col.name == pair.first) {
+            if (col.name == actualColName) {
                 found = true;
                 targetCol = &col;
                 break;
@@ -752,13 +776,21 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
                   "' into " + getTypeName(targetCol->type) + " column");
             return;
         }
+        
+        // Store with actual column name
+        resolvedNewValues[actualColName] = pair.second;
     }
     
     // Validate WHERE column exists (if specified)
+    Condition resolvedWhere = q->where;
     if (!q->where.column.empty()) {
+        // Extract actual column name from WHERE clause
+        string actualColName = extractColumnName(q->where.column, q->tableAlias);
+        resolvedWhere.column = actualColName;
+        
         bool found = false;
         for (const auto& col : columns) {
-            if (col.name == q->where.column) {
+            if (col.name == actualColName) {
                 found = true;
                 break;
             }
@@ -769,7 +801,7 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         }
     }
 
-    table->updateRows(q->where, q->newValues);
+    table->updateRows(resolvedWhere, resolvedNewValues);
     
     // Save to CSV immediately
     string csvPath = "data/" + q->tableName + ".csv";
@@ -786,11 +818,16 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
     }
 
     // Validate WHERE column exists (if specified)
+    Condition resolvedWhere = q->where;
     if (!q->where.column.empty()) {
+        // Extract actual column name from WHERE clause
+        string actualColName = extractColumnName(q->where.column, q->tableAlias);
+        resolvedWhere.column = actualColName;
+        
         const auto& columns = table->getColumns();
         bool found = false;
         for (const auto& col : columns) {
-            if (col.name == q->where.column) {
+            if (col.name == actualColName) {
                 found = true;
                 break;
             }
@@ -801,7 +838,7 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
         }
     }
 
-    table->deleteRows(q->where);
+    table->deleteRows(resolvedWhere);
     
     // Save to CSV immediately
     string csvPath = "data/" + q->tableName + ".csv";

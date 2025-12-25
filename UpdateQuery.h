@@ -13,6 +13,7 @@ using namespace std;
 class UpdateQuery : public Query {
 public:
     string tableName;
+    string tableAlias; // Alias for the table
     Condition where;
     map<string, Value> newValues;
 
