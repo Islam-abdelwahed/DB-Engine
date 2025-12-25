@@ -4,6 +4,51 @@
 
 using namespace std;
 
+// Copy constructor for deep copy
+Condition::Condition(const Condition& other) 
+    : column(other.column),
+      op(other.op),
+      value(other.value),
+      logicalOp(other.logicalOp),
+      left(other.left ? new Condition(*other.left) : nullptr),
+      right(other.right ? new Condition(*other.right) : nullptr) {}
+
+// Assignment operator
+Condition& Condition::operator=(const Condition& other) {
+    if (this != &other) {
+        column = other.column;
+        op = other.op;
+        value = other.value;
+        logicalOp = other.logicalOp;
+        left = other.left ? unique_ptr<Condition>(new Condition(*other.left)) : nullptr;
+        right = other.right ? unique_ptr<Condition>(new Condition(*other.right)) : nullptr;
+    }
+    return *this;
+}
+
+// Resolve column names with aliases (e.g., "alias.column" -> "column")
+void Condition::resolveColumnAlias(const string& tableAlias) {
+    // Resolve this condition's column
+    if (!column.empty()) {
+        size_t dotPos = column.find('.');
+        if (dotPos != string::npos) {
+            string prefix = column.substr(0, dotPos);
+            string suffix = column.substr(dotPos + 1);
+            if (prefix == tableAlias) {
+                column = suffix;
+            }
+        }
+    }
+    
+    // Recursively resolve left and right conditions
+    if (left) {
+        left->resolveColumnAlias(tableAlias);
+    }
+    if (right) {
+        right->resolveColumnAlias(tableAlias);
+    }
+}
+
 bool Condition::evaluate(const Row& r, const vector<Column>& columns) const {
     // If no column specified (no WHERE clause), return true for all rows
     if (column.empty() && logicalOp == LogicalOperator::NONE) {
