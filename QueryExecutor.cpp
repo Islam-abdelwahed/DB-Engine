@@ -190,6 +190,9 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             // RIGHT JOIN: include all right rows, matching left rows where possible
             vector<bool> rightRowMatched(joinTableRows.size(), false);
             
+            // Store the number of columns before adding the join table columns
+            size_t leftColumnsCount = allColumns.size();
+            
             // First pass: find and add all matching rows
             for (const auto& leftRow : joinedRows) {
                 // Validate leftColIdx is in range
@@ -223,9 +226,9 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
                 if (!rightRowMatched[rightIdx]) {
                     Row mergedRow;
-                    // Add NULL values for all current left columns
-                    for (const auto& col : allColumns) {
-                        mergedRow.values.push_back(Value::createNull(col.type));
+                    // Add NULL values for all left columns (before this join)
+                    for (size_t i = 0; i < leftColumnsCount; ++i) {
+                        mergedRow.values.push_back(Value::createNull(allColumns[i].type));
                     }
                     // Add actual values from the unmatched right row
                     for (const auto& val : joinTableRows[rightIdx].values) {
