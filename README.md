@@ -450,7 +450,9 @@ This project is open source. See the LICENSE file for details.
 
 ## Authors
 
+- Ziad Salah - [@ZiadSalah2003](https://github.com/ZiadSalah2003 )
 - Islam Abdelwahed - [@Islam-abdelwahed](https://github.com/Islam-abdelwahed)
+- Ahmed Ismail - [@Ahmed-Ismail416](https://github.com/Ahmed-Ismail416)
 
 ## Acknowledgments
 
