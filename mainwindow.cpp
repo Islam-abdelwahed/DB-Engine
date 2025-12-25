@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n",true);
 
     // Set callbacks for executor
-    executor.setOutputCallback([this](const string& s,const bool& focus) {
+    executor.setOutputCallback([this](const string& s,const bool focus) {
         printOutput(QString::fromStdString(s), focus);
     });
     executor.setErrorCallback([this](const string& s) {
@@ -180,11 +180,11 @@ void MainWindow::updateExplorerTree() {
     ui->tables_tree->expand(rootIndex);
 }
 
-void MainWindow::printOutput(const QString& text,const bool& focus) {
+void MainWindow::printOutput(const QString& text,const bool focus) {
     ui->outputText->append(text);
     QScrollBar *bar = ui->outputText->verticalScrollBar();
     if(focus)
-        ui->bottomTabs->setCurrentWidget(ui->error_tab);
+    { ui->bottomTabs->setCurrentWidget(ui->output_tab);}
     bar->setValue(bar->maximum());
 }
 

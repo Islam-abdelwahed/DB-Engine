@@ -586,7 +586,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     if(!(resultColumns.size()==0 && projectedRows.size()==0))
     resultTable(resultColumns, projectedRows);
 
-    output("(" + to_string(projectedRows.size()) + " row(s) selected)",true);
+    output("(" + to_string(projectedRows.size()) + " row(s) selected)",false);
 }
 
 void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
@@ -621,11 +621,8 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
             return;
         }
     } else {
-<<<<<<< HEAD
+
         // Insert all columns
-        if(!table->insertRow(q->values))
-            error("Error with keys");
-=======
         // Validate all column types match
         const auto& columns = table->getColumns();
         if (q->values.values.size() != columns.size()) {
@@ -647,7 +644,8 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
             error("Failed to insert row: constraint violation");
             return;
         }
->>>>>>> 39f76254583cfe67a4880f6df8298385d0aa8d41
+        if(!table->insertRow(q->values))
+            error("Error with keys");
     }
     
     // Save to CSV immediately

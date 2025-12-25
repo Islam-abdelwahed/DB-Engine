@@ -236,10 +236,12 @@ Query* Parser::parse(const string& sqlText) {
                 
                 // Check if it's an aggregate function
                 bool isAggregate = false;
-                vector<string> aggFuncs = {"SUM(", "COUNT(", "AVG(", "MIN(", "MAX("};
+                vector<string> aggFuncNames = {"SUM", "COUNT", "AVG", "MIN", "MAX"};
                 
-                for (const auto& aggFunc : aggFuncs) {
-                    if (colUpper.find(aggFunc) != string::npos) {
+                for (const auto& aggFunc : aggFuncNames) {
+                    // Check for aggregate function with proper spacing before parenthesis
+                    size_t funcPos = colUpper.find(aggFunc);
+                    if (funcPos != string::npos && hasProperSpacing(colUpper, aggFunc, funcPos)) {
                         isAggregate = true;
                         
                         // Extract function name
