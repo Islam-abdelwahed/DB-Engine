@@ -119,45 +119,90 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         vector<Row> newJoinedRows;
         vector<bool> rightRowMatched(joinTableRows.size(), false); // Track which right rows matched (for RIGHT JOIN)
         
-        for (const auto& leftRow : joinedRows) {
-            bool matched = false;
-            for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
-                const auto& rightRow = joinTableRows[rightIdx];
+        // Process based on join type
+        if (join.joinType == "INNER") {
+            // INNER JOIN: only include matching rows
+            for (const auto& leftRow : joinedRows) {
+                for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                    const auto& rightRow = joinTableRows[rightIdx];
+                    
+                    // For JOIN condition: handle NULL values properly
+                    // Two NULL values don't match in SQL JOIN semantics
+                    bool leftIsNull = (leftColIdx < leftRow.values.size() && leftRow.values[leftColIdx].isNull);
+                    bool rightIsNull = (rightColIdx < rightRow.values.size() && rightRow.values[rightColIdx].isNull);
+                    
+                    // Only match if both are non-NULL and equal
+                    if (!leftIsNull && !rightIsNull && 
+                        leftRow.values[leftColIdx].data == rightRow.values[rightColIdx].data) {
+                        // Merge rows
+                        Row mergedRow;
+                        mergedRow.values = leftRow.values;
+                        for (const auto& val : rightRow.values) {
+                            mergedRow.values.push_back(val);
+                        }
+                        newJoinedRows.push_back(mergedRow);
+                    }
+                }
+            }
+        } else if (join.joinType == "LEFT") {
+            // LEFT JOIN: include all left rows, matching right rows where possible
+            for (const auto& leftRow : joinedRows) {
+                bool matched = false;
+                for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                    const auto& rightRow = joinTableRows[rightIdx];
+                    
+                    bool leftIsNull = (leftColIdx < leftRow.values.size() && leftRow.values[leftColIdx].isNull);
+                    bool rightIsNull = (rightColIdx < rightRow.values.size() && rightRow.values[rightColIdx].isNull);
+                    
+                    if (!leftIsNull && !rightIsNull && 
+                        leftRow.values[leftColIdx].data == rightRow.values[rightColIdx].data) {
+                        // Merge rows
+                        Row mergedRow;
+                        mergedRow.values = leftRow.values;
+                        for (const auto& val : rightRow.values) {
+                            mergedRow.values.push_back(val);
+                        }
+                        newJoinedRows.push_back(mergedRow);
+                        matched = true;
+                    }
+                }
                 
-                // For JOIN condition: handle NULL values properly
-                // Two NULL values don't match in SQL JOIN semantics
-                bool leftIsNull = (leftColIdx < leftRow.values.size() && leftRow.values[leftColIdx].isNull);
-                bool rightIsNull = (rightColIdx < rightRow.values.size() && rightRow.values[rightColIdx].isNull);
-                
-                // Only match if both are non-NULL and equal
-                if (!leftIsNull && !rightIsNull && 
-                    leftRow.values[leftColIdx].data == rightRow.values[rightColIdx].data) {
-                    // Merge rows
+                // For LEFT JOIN, include unmatched rows from left table
+                if (!matched) {
                     Row mergedRow;
                     mergedRow.values = leftRow.values;
-                    for (const auto& val : rightRow.values) {
-                        mergedRow.values.push_back(val);
+                    // Add NULL values for joined table columns
+                    for (size_t i = 0; i < joinTableColumns.size(); ++i) {
+                        mergedRow.values.push_back(Value::createNull(joinTableColumns[i].type));
                     }
                     newJoinedRows.push_back(mergedRow);
-                    matched = true;
-                    rightRowMatched[rightIdx] = true; // Mark this right row as matched
+                }
+            }
+        } else if (join.joinType == "RIGHT") {
+            // RIGHT JOIN: include all right rows, matching left rows where possible
+            // First, process all left rows and track which right rows matched
+            for (const auto& leftRow : joinedRows) {
+                for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                    const auto& rightRow = joinTableRows[rightIdx];
+                    
+                    bool leftIsNull = (leftColIdx < leftRow.values.size() && leftRow.values[leftColIdx].isNull);
+                    bool rightIsNull = (rightColIdx < rightRow.values.size() && rightRow.values[rightColIdx].isNull);
+                    
+                    if (!leftIsNull && !rightIsNull && 
+                        leftRow.values[leftColIdx].data == rightRow.values[rightColIdx].data) {
+                        // Merge rows
+                        Row mergedRow;
+                        mergedRow.values = leftRow.values;
+                        for (const auto& val : rightRow.values) {
+                            mergedRow.values.push_back(val);
+                        }
+                        newJoinedRows.push_back(mergedRow);
+                        rightRowMatched[rightIdx] = true;
+                    }
                 }
             }
             
-            // For LEFT JOIN, include unmatched rows from left table
-            if (!matched && join.joinType == "LEFT") {
-                Row mergedRow;
-                mergedRow.values = leftRow.values;
-                // Add NULL values for joined table columns
-                for (size_t i = 0; i < joinTableColumns.size(); ++i) {
-                    mergedRow.values.push_back(Value::createNull(joinTableColumns[i].type));
-                }
-                newJoinedRows.push_back(mergedRow);
-            }
-        }
-        
-        // For RIGHT JOIN, include unmatched rows from right table
-        if (join.joinType == "RIGHT") {
+            // Now add all unmatched right rows with NULL left values
             for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
                 if (!rightRowMatched[rightIdx]) {
                     Row mergedRow;
