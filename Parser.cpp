@@ -10,31 +10,33 @@
 #include <algorithm>
 #include <cctype>
 
+using namespace std;
+
 // Helper functions from SQLParser.h and Helper.cpp adapted
 
-std::string toUpper(std::string str) {
-    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+string toUpper(string str) {
+    transform(str.begin(), str.end(), str.begin(), ::toupper);
     return str;
 }
 
-std::string trim(const std::string& str) {
+string trim(const string& str) {
     size_t start = str.find_first_not_of(" \t\n\r");
-    if (start == std::string::npos) return "";
+    if (start == string::npos) return "";
     size_t end = str.find_last_not_of(" \t\n\r");
     return str.substr(start, end - start + 1);
 }
 
-std::vector<std::string> split(const std::string& str, char delimiter) {
-    std::vector<std::string> result;
-    std::stringstream ss(str);
-    std::string item;
-    while (std::getline(ss, item, delimiter)) {
+vector<string> split(const string& str, char delimiter) {
+    vector<string> result;
+    stringstream ss(str);
+    string item;
+    while (getline(ss, item, delimiter)) {
         result.push_back(trim(item));
     }
     return result;
 }
 
-std::string stripQuotes(std::string value) {
+string stripQuotes(string value) {
     value = trim(value);
     if (value.length() >= 2 && ((value.front() == '\'' && value.back() == '\'') || (value.front() == '"' && value.back() == '"'))) {
         return value.substr(1, value.length() - 2);
@@ -42,68 +44,183 @@ std::string stripQuotes(std::string value) {
     return value;
 }
 
+// Infer data type from value string
+DataType inferDataType(const string& value) {
+    string trimmedValue = trim(value);
+    
+    // Check if it's quoted (string)
+    if (trimmedValue.length() >= 2 && 
+        ((trimmedValue.front() == '\'' && trimmedValue.back() == '\'') || 
+         (trimmedValue.front() == '"' && trimmedValue.back() == '"'))) {
+        return DataType::STRING;
+    }
+    
+    // Check if it's a number
+    if (!trimmedValue.empty()) {
+        bool hasDecimal = false;
+        bool isNumber = true;
+        size_t start = 0;
+        
+        // Handle negative numbers
+        if (trimmedValue[0] == '-' || trimmedValue[0] == '+') {
+            start = 1;
+        }
+        
+        for (size_t i = start; i < trimmedValue.length(); ++i) {
+            if (trimmedValue[i] == '.') {
+                if (hasDecimal) {
+                    isNumber = false;
+                    break;
+                }
+                hasDecimal = true;
+            } else if (!isdigit(trimmedValue[i])) {
+                isNumber = false;
+                break;
+            }
+        }
+        
+        if (isNumber && trimmedValue.length() > start) {
+            return hasDecimal ? DataType::FLOAT : DataType::INTEGER;
+        }
+    }
+    
+    // Check for boolean
+    string upper = toUpper(trimmedValue);
+    if (upper == "TRUE" || upper == "FALSE" || upper == "1" || upper == "0") {
+        return DataType::BOOLEAN;
+    }
+    
+    // Default to string
+    return DataType::STRING;
+}
+
 // Validate SQL identifier (table/column name)
-bool isValidIdentifier(const std::string& name) {
+bool isValidIdentifier(const string& name) {
     if (name.empty()) return false;
     
     // Must start with letter or underscore
-    if (!std::isalpha(name[0]) && name[0] != '_') return false;
+    if (!isalpha(name[0]) && name[0] != '_') return false;
     
     // Rest must be alphanumeric or underscore
     for (size_t i = 1; i < name.length(); ++i) {
-        if (!std::isalnum(name[i]) && name[i] != '_') return false;
+        if (!isalnum(name[i]) && name[i] != '_') return false;
     }
     
     return true;
 }
 
 // Check if keyword has proper spacing (next char must be whitespace)
-bool hasProperSpacing(const std::string& upperQuery, const std::string& keyword, size_t keywordPos) {
+bool hasProperSpacing(const string& upperQuery, const string& keyword, size_t keywordPos) {
     size_t endPos = keywordPos + keyword.length();
     if (endPos >= upperQuery.length()) return true; // End of query is OK
     
     char nextChar = upperQuery[endPos];
-    return std::isspace(nextChar) || nextChar == '(' || nextChar == ';';
+    return isspace(nextChar) || nextChar == '(' || nextChar == ';';
 }
 
 // Validate data type string is valid
-bool isValidDataType(const std::string& typeStr) {
-    std::string upper = toUpper(typeStr);
-    return (upper.find("INT") != std::string::npos ||
-            upper.find("VARCHAR") != std::string::npos ||
-            upper.find("FLOAT") != std::string::npos ||
-            upper.find("DOUBLE") != std::string::npos ||
-            upper.find("BOOL") != std::string::npos ||
+bool isValidDataType(const string& typeStr) {
+    string upper = toUpper(typeStr);
+    return (upper.find("INT") != string::npos ||
+            upper.find("VARCHAR") != string::npos ||
+            upper.find("FLOAT") != string::npos ||
+            upper.find("DOUBLE") != string::npos ||
+            upper.find("BOOL") != string::npos ||
             upper == "STRING" ||
             upper == "TEXT");
 }
 
-// Parse condition from WHERE clause (simple column op value)
-Condition parseCondition(const std::string& wherePart) {
+// Parse condition from WHERE clause with AND/OR support
+Condition parseCondition(const string& wherePart) {
+    string wherePartTrimmed = trim(wherePart);
+    string wherePartUpper = toUpper(wherePartTrimmed);
+    
+    // Check for OR first (lower precedence)
+    size_t orPos = wherePartUpper.find(" OR ");
+    if (orPos != string::npos) {
+        Condition c;
+        c.logicalOp = LogicalOperator::OR;
+        
+        string leftPart = trim(wherePart.substr(0, orPos));
+        string rightPart = trim(wherePart.substr(orPos + 4));
+        
+        c.left = make_unique<Condition>(parseCondition(leftPart));
+        c.right = make_unique<Condition>(parseCondition(rightPart));
+        
+        return c;
+    }
+    
+    // Check for AND (higher precedence)
+    size_t andPos = wherePartUpper.find(" AND ");
+    if (andPos != string::npos) {
+        Condition c;
+        c.logicalOp = LogicalOperator::AND;
+        
+        string leftPart = trim(wherePart.substr(0, andPos));
+        string rightPart = trim(wherePart.substr(andPos + 5));
+        
+        c.left = make_unique<Condition>(parseCondition(leftPart));
+        c.right = make_unique<Condition>(parseCondition(rightPart));
+        
+        return c;
+    }
+    
+    // Parse simple condition (column op value)
     Condition c;
-    std::string opStr = "="; // Default
-    size_t opPos = wherePart.find('=');
-    if (opPos == std::string::npos) {
+    c.logicalOp = LogicalOperator::NONE;
+    
+    string opStr = "="; // Default
+    size_t opPos = string::npos;
+    
+    // Check for two-character operators first
+    opPos = wherePart.find("!=");
+    if (opPos != string::npos) {
+        opStr = "!=";
+    } else {
+        opPos = wherePart.find("<>");
+        if (opPos != string::npos) {
+            opStr = "<>";
+        } else {
+            opPos = wherePart.find(">=");
+            if (opPos != string::npos) {
+                opStr = ">=";
+            } else {
+                opPos = wherePart.find("<=");
+                if (opPos != string::npos) {
+                    opStr = "<=";
+                }
+            }
+        }
+    }
+    
+    // If no two-character operator found, check for single-character operators
+    if (opPos == string::npos) {
+        opPos = wherePart.find('=');
+        if (opPos != string::npos) {
+            opStr = "=";
+        }
+    }
+    if (opPos == string::npos) {
         opPos = wherePart.find('>');
-        if (opPos != std::string::npos) opStr = ">";
+        if (opPos != string::npos) opStr = ">";
     }
-    if (opPos == std::string::npos) {
+    if (opPos == string::npos) {
         opPos = wherePart.find('<');
-        if (opPos != std::string::npos) opStr = "<";
+        if (opPos != string::npos) opStr = "<";
     }
-    // Add more ops
 
-    if (opPos != std::string::npos) {
+    if (opPos != string::npos) {
         c.column = trim(wherePart.substr(0, opPos));
         c.op = opStr;
-        std::string valStr = trim(wherePart.substr(opPos + opStr.length()));
-        c.value = Value(DataType::STRING, stripQuotes(valStr)); // Assume STRING
+        string valStr = trim(wherePart.substr(opPos + opStr.length()));
+        DataType inferredType = inferDataType(valStr);
+        c.value = Value(inferredType, stripQuotes(valStr));
     }
     return c;
 }
 
-Query* Parser::parse(const std::string& sqlText) {
-    std::string upperQuery = toUpper(trim(sqlText));
+Query* Parser::parse(const string& sqlText) {
+    string upperQuery = toUpper(trim(sqlText));
 
     if (upperQuery.find("SELECT") == 0) {
         // Validate SELECT has proper spacing
@@ -113,7 +230,7 @@ Query* Parser::parse(const std::string& sqlText) {
         
         SelectQuery* q = new SelectQuery();
         size_t fromPos = upperQuery.find("FROM");
-        if (fromPos == std::string::npos) { delete q; return nullptr; }
+        if (fromPos == string::npos) { delete q; return nullptr; }
 
         // Validate FROM has proper spacing
         if (!hasProperSpacing(upperQuery, "FROM", fromPos)) {
@@ -121,41 +238,54 @@ Query* Parser::parse(const std::string& sqlText) {
             return nullptr;
         }
 
-        std::string columnsPart = trim(sqlText.substr(6, fromPos - 6));
+        string columnsPart = trim(sqlText.substr(6, fromPos - 6));
+        
+        // Validate that columns part is not empty
+        if (columnsPart.empty()) {
+            delete q;
+            return nullptr; // Invalid: SELECT without columns
+        }
+        
         if (columnsPart == "*") {
             q->columns.push_back("*");
         } else {
             // Parse columns and aggregate functions
             auto colList = split(columnsPart, ',');
             for (const auto& col : colList) {
-                std::string colTrimmed = trim(col);
-                std::string colUpper = toUpper(colTrimmed);
+                string colTrimmed = trim(col);
+                string colUpper = toUpper(colTrimmed);
                 
                 // Check if it's an aggregate function
                 bool isAggregate = false;
-                std::vector<std::string> aggFuncs = {"SUM(", "COUNT(", "AVG(", "MIN(", "MAX("};
+
+                vector<string> aggFuncs = {"SUM", "COUNT", "AVG", "MIN", "MAX"};
                 
                 for (const auto& aggFunc : aggFuncs) {
-                    if (colUpper.find(aggFunc) != std::string::npos) {
-                        isAggregate = true;
-                        
-                        // Extract function name
-                        size_t openParen = colUpper.find('(');
-                        std::string funcName = colUpper.substr(0, openParen);
-                        
-                        // Extract column name inside parentheses
-                        size_t closeParen = colTrimmed.find(')');
-                        if (closeParen != std::string::npos) {
-                            std::string innerCol = trim(colTrimmed.substr(openParen + 1, closeParen - openParen - 1));
-                            
-                            AggregateFunction agg;
-                            agg.function = funcName;
-                            agg.column = innerCol; // Can be "*" for COUNT(*)
-                            agg.alias = colTrimmed; // Store original expression as alias
-                            
-                            q->aggregates.push_back(agg);
+                    if (colUpper.find(aggFunc) == 0) {
+                        size_t openParen = colTrimmed.find('(');
+                        if (openParen != string::npos) {
+                            string between = trim(colTrimmed.substr(aggFunc.length(), openParen - aggFunc.length()));
+                            if (between.empty()) {
+                                isAggregate = true;
+                                
+                                // Extract function name
+                                string funcName = aggFunc;
+                                
+                                // Extract column name inside parentheses
+                                size_t closeParen = colTrimmed.find(')');
+                                if (closeParen != string::npos) {
+                                    string innerCol = trim(colTrimmed.substr(openParen + 1, closeParen - openParen - 1));
+                                    
+                                    AggregateFunction agg;
+                                    agg.function = funcName;
+                                    agg.column = innerCol; // Can be "*" for COUNT(*)
+                                    agg.alias = colTrimmed; // Store original expression as alias
+                                    
+                                    q->aggregates.push_back(agg);
+                                }
+                                break;
+                            }
                         }
-                        break;
                     }
                 }
                 
@@ -173,36 +303,60 @@ Query* Parser::parse(const std::string& sqlText) {
         size_t orderByPos = upperQuery.find("ORDER BY");
         
         // Determine the end of the FROM clause
-        size_t fromEnd = std::string::npos;
-        std::vector<size_t> positions = {wherePos, joinPos, groupByPos, orderByPos};
+        size_t fromEnd = string::npos;
+        vector<size_t> positions = {wherePos, joinPos, groupByPos, orderByPos};
         for (size_t pos : positions) {
-            if (pos != std::string::npos && (fromEnd == std::string::npos || pos < fromEnd)) {
+            if (pos != string::npos && (fromEnd == string::npos || pos < fromEnd)) {
                 fromEnd = pos;
             }
         }
         
-        if (fromEnd == std::string::npos) {
+        if (fromEnd == string::npos) {
             fromEnd = sqlText.length();
         }
         
-        // Extract table name
-        std::string tablePart = trim(sqlText.substr(fromPos + 4, fromEnd - fromPos - 4));
-        q->tableName = tablePart;
+        // Extract table name and handle alias
+        string tablePart = trim(sqlText.substr(fromPos + 4, fromEnd - fromPos - 4));
+        
+        // Create a map to store table aliases for resolving references
+        map<string, string> tableAliases; // alias -> actual table name
+        
+        // Parse table name and alias (e.g., "ahmed a" -> table: "ahmed", alias: "a")
+        auto tableParts = split(tablePart, ' ');
+        if (tableParts.size() >= 2) {
+            q->tableName = tableParts[0];
+            q->tableAlias = tableParts[1];
+            tableAliases[tableParts[1]] = tableParts[0]; // alias -> table
+        } else {
+            q->tableName = tablePart;
+            q->tableAlias = tablePart; // No separate alias
+            tableAliases[tablePart] = tablePart; // table can reference itself
+        }
+        
+        // Store table aliases in query for later use
+        q->tableAliases = tableAliases;
 
         // Parse JOIN clauses
         size_t currentPos = fromEnd;
-        while (joinPos != std::string::npos && joinPos >= currentPos) {
+        string upperTableRef = toUpper(q->tableAlias.empty() ? q->tableName : q->tableAlias);
+        size_t tableRefPos = upperQuery.find(upperTableRef, fromPos);
+        if (tableRefPos != string::npos) {
+            currentPos = tableRefPos + upperTableRef.length();
+        } else {
+            currentPos = fromPos + 4;  // Fallback to after "FROM "
+        }
+        while (joinPos != string::npos && joinPos >= currentPos) {
             JoinClause join;
             // Determine join type
             size_t innerPos = upperQuery.rfind("INNER", joinPos);
             size_t leftPos = upperQuery.rfind("LEFT", joinPos);
             size_t rightPos = upperQuery.rfind("RIGHT", joinPos);
             
-            if (innerPos != std::string::npos && innerPos < joinPos && innerPos > currentPos) {
+            if (innerPos != string::npos && innerPos < joinPos && innerPos > currentPos) {
                 join.joinType = "INNER";
-            } else if (leftPos != std::string::npos && leftPos < joinPos && leftPos > currentPos) {
+            } else if (leftPos != string::npos && leftPos < joinPos && leftPos > currentPos) {
                 join.joinType = "LEFT";
-            } else if (rightPos != std::string::npos && rightPos < joinPos && rightPos > currentPos) {
+            } else if (rightPos != string::npos && rightPos < joinPos && rightPos > currentPos) {
                 join.joinType = "RIGHT";
             } else {
                 join.joinType = "INNER"; // Default
@@ -210,12 +364,12 @@ Query* Parser::parse(const std::string& sqlText) {
             
             // Find ON clause
             size_t onPos = upperQuery.find("ON", joinPos);
-            if (onPos != std::string::npos) {
+            if (onPos != string::npos) {
                 // Extract joined table name (between JOIN and ON, excluding INNER/LEFT/RIGHT)
-                std::string joinTablePart = trim(sqlText.substr(joinPos + 4, onPos - joinPos - 4));
+                string joinTablePart = trim(sqlText.substr(joinPos + 4, onPos - joinPos - 4));
                 
                 // Remove INNER/LEFT/RIGHT from table name if present
-                std::string joinTablePartUpper = toUpper(joinTablePart);
+                string joinTablePartUpper = toUpper(joinTablePart);
                 if (joinTablePartUpper.find("INNER") == 0) {
                     joinTablePart = trim(joinTablePart.substr(5));
                 } else if (joinTablePartUpper.find("LEFT") == 0) {
@@ -224,36 +378,49 @@ Query* Parser::parse(const std::string& sqlText) {
                     joinTablePart = trim(joinTablePart.substr(5));
                 }
                 
-                join.tableName = joinTablePart;
+                // Parse table name and alias (e.g., "ali l" -> table: "ali", alias: "l")
+                auto joinTableParts = split(joinTablePart, ' ');
+                if (joinTableParts.size() >= 2) {
+                    join.tableName = joinTableParts[0];
+                    tableAliases[joinTableParts[1]] = joinTableParts[0]; // alias -> table
+                    q->tableAliases[joinTableParts[1]] = joinTableParts[0]; // Update query's alias map
+                } else {
+                    join.tableName = joinTablePart;
+                    tableAliases[joinTablePart] = joinTablePart; // table can reference itself
+                    q->tableAliases[joinTablePart] = joinTablePart; // Update query's alias map
+                }
                 
                 // Find next clause to determine end of ON
-                size_t onEnd = std::string::npos;
+                size_t onEnd = string::npos;
                 size_t nextJoin = upperQuery.find("JOIN", onPos);
-                std::vector<size_t> nextPositions = {wherePos, nextJoin, groupByPos, orderByPos};
+                vector<size_t> nextPositions = {wherePos, nextJoin, groupByPos, orderByPos};
                 for (size_t pos : nextPositions) {
-                    if (pos != std::string::npos && pos > onPos && (onEnd == std::string::npos || pos < onEnd)) {
+                    if (pos != string::npos && pos > onPos && (onEnd == string::npos || pos < onEnd)) {
                         onEnd = pos;
                     }
                 }
-                if (onEnd == std::string::npos) onEnd = sqlText.length();
+                if (onEnd == string::npos) onEnd = sqlText.length();
                 
-                // Parse ON condition (table1.col = table2.col)
-                std::string onClause = trim(sqlText.substr(onPos + 2, onEnd - onPos - 2));
-                size_t eqPos = onClause.find('=');
-                if (eqPos != std::string::npos) {
-                    std::string leftSide = trim(onClause.substr(0, eqPos));
-                    std::string rightSide = trim(onClause.substr(eqPos + 1));
+                // Parse ON condition (e.g., "a.id = l.id")
+                string onPart = trim(sqlText.substr(onPos + 2, onEnd - onPos - 2));
+                
+                // Find the equals sign
+                size_t eqPos = onPart.find('=');
+                if (eqPos != string::npos) {
+                    string leftSide = trim(onPart.substr(0, eqPos));
+                    string rightSide = trim(onPart.substr(eqPos + 1));
                     
-                    // Extract column names (may include table prefix)
+                    // Parse left side (could be table.column or alias.column)
                     size_t dotPos = leftSide.find('.');
-                    if (dotPos != std::string::npos) {
+                    if (dotPos != string::npos) {
                         join.leftColumn = trim(leftSide.substr(dotPos + 1));
                     } else {
                         join.leftColumn = leftSide;
                     }
                     
+                    // Parse right side (could be table.column or alias.column)
                     dotPos = rightSide.find('.');
-                    if (dotPos != std::string::npos) {
+                    if (dotPos != string::npos) {
                         join.rightColumn = trim(rightSide.substr(dotPos + 1));
                     } else {
                         join.rightColumn = rightSide;
@@ -269,41 +436,41 @@ Query* Parser::parse(const std::string& sqlText) {
         }
 
         // Parse WHERE clause
-        if (wherePos != std::string::npos) {
-            size_t whereEnd = std::string::npos;
-            std::vector<size_t> nextPositions = {groupByPos, orderByPos};
+        if (wherePos != string::npos) {
+            size_t whereEnd = string::npos;
+            vector<size_t> nextPositions = {groupByPos, orderByPos};
             for (size_t pos : nextPositions) {
-                if (pos != std::string::npos && (whereEnd == std::string::npos || pos < whereEnd)) {
+                if (pos != string::npos && (whereEnd == string::npos || pos < whereEnd)) {
                     whereEnd = pos;
                 }
             }
-            if (whereEnd == std::string::npos) whereEnd = sqlText.length();
+            if (whereEnd == string::npos) whereEnd = sqlText.length();
             
-            std::string wherePart = trim(sqlText.substr(wherePos + 5, whereEnd - wherePos - 5));
+            string wherePart = trim(sqlText.substr(wherePos + 5, whereEnd - wherePos - 5));
             q->where = parseCondition(wherePart);
         }
 
         // Parse GROUP BY
-        if (groupByPos != std::string::npos) {
-            size_t groupByEnd = orderByPos != std::string::npos ? orderByPos : sqlText.length();
-            std::string groupByPart = trim(sqlText.substr(groupByPos + 8, groupByEnd - groupByPos - 8));
+        if (groupByPos != string::npos) {
+            size_t groupByEnd = orderByPos != string::npos ? orderByPos : sqlText.length();
+            string groupByPart = trim(sqlText.substr(groupByPos + 8, groupByEnd - groupByPos - 8));
             q->groupBy = split(groupByPart, ',');
         }
 
         // Parse ORDER BY
-        if (orderByPos != std::string::npos) {
-            std::string orderByPart = trim(sqlText.substr(orderByPos + 8));
+        if (orderByPos != string::npos) {
+            string orderByPart = trim(sqlText.substr(orderByPos + 8));
             auto orderItems = split(orderByPart, ',');
             for (const auto& item : orderItems) {
                 SortRule rule;
-                std::string itemUpper = toUpper(item);
-                if (itemUpper.find("DESC") != std::string::npos) {
+                string itemUpper = toUpper(item);
+                if (itemUpper.find("DESC") != string::npos) {
                     rule.ascending = false;
                     rule.column = trim(item.substr(0, item.find_last_of(' ')));
                 } else {
                     rule.ascending = true;
                     // Remove ASC if present
-                    if (itemUpper.find("ASC") != std::string::npos) {
+                    if (itemUpper.find("ASC") != string::npos) {
                         rule.column = trim(item.substr(0, item.find_last_of(' ')));
                     } else {
                         rule.column = trim(item);
@@ -323,7 +490,7 @@ Query* Parser::parse(const std::string& sqlText) {
         InsertQuery* q = new InsertQuery();
         size_t intoPos = upperQuery.find("INTO");
         size_t valuesPos = upperQuery.find("VALUES");
-        if (intoPos == std::string::npos || valuesPos == std::string::npos) { delete q; return nullptr; }
+        if (intoPos == string::npos || valuesPos == string::npos) { delete q; return nullptr; }
 
         // Validate INTO has proper spacing
         if (!hasProperSpacing(upperQuery, "INTO", intoPos)) {
@@ -332,15 +499,15 @@ Query* Parser::parse(const std::string& sqlText) {
         }
 
         // Extract table name and optionally specified columns
-        std::string tablePart = trim(sqlText.substr(intoPos + 4, valuesPos - intoPos - 4));
+        string tablePart = trim(sqlText.substr(intoPos + 4, valuesPos - intoPos - 4));
         size_t parenPos = tablePart.find('(');
         
-        if (parenPos != std::string::npos) {
+        if (parenPos != string::npos) {
             // INSERT INTO table(col1, col2) VALUES(...)
             q->tableName = trim(tablePart.substr(0, parenPos));
             size_t closeParenPos = tablePart.find(')');
-            if (closeParenPos == std::string::npos) { delete q; return nullptr; }
-            std::string colsPart = tablePart.substr(parenPos + 1, closeParenPos - parenPos - 1);
+            if (closeParenPos == string::npos) { delete q; return nullptr; }
+            string colsPart = tablePart.substr(parenPos + 1, closeParenPos - parenPos - 1);
             auto colNames = split(colsPart, ',');
             for (const auto& col : colNames) {
                 q->specifiedColumns.push_back(trim(col));
@@ -352,12 +519,14 @@ Query* Parser::parse(const std::string& sqlText) {
 
         size_t openParen = sqlText.find('(', valuesPos);
         size_t closeParen = sqlText.rfind(')');
-        if (openParen == std::string::npos || closeParen == std::string::npos) { delete q; return nullptr; }
+        if (openParen == string::npos || closeParen == string::npos) { delete q; return nullptr; }
 
-        std::string valuesPart = sqlText.substr(openParen + 1, closeParen - openParen - 1);
+        string valuesPart = sqlText.substr(openParen + 1, closeParen - openParen - 1);
         auto valueStrs = split(valuesPart, ',');
         for (const auto& vs : valueStrs) {
-            q->values.values.emplace_back(DataType::STRING, stripQuotes(vs));
+            string trimmedVal = trim(vs);
+            DataType inferredType = inferDataType(trimmedVal);
+            q->values.values.emplace_back(inferredType, stripQuotes(trimmedVal));
         }
 
         return q;
@@ -369,26 +538,39 @@ Query* Parser::parse(const std::string& sqlText) {
         
         UpdateQuery* q = new UpdateQuery();
         size_t setPos = upperQuery.find("SET");
-        if (setPos == std::string::npos) { delete q; return nullptr; }
+        if (setPos == string::npos) { delete q; return nullptr; }
 
-        q->tableName = trim(sqlText.substr(6, setPos - 6));
+        // Extract table name and handle alias
+        string tablePart = trim(sqlText.substr(6, setPos - 6));
+        auto tableParts = split(tablePart, ' ');
+        if (tableParts.size() >= 2) {
+            q->tableName = tableParts[0];
+            q->tableAlias = tableParts[1];
+        } else {
+            q->tableName = tablePart;
+            q->tableAlias = tablePart; // No separate alias
+        }
 
         size_t wherePos = upperQuery.find("WHERE");
-        std::string setPart;
-        if (wherePos != std::string::npos) {
+        string setPart;
+        if (wherePos != string::npos) {
             setPart = trim(sqlText.substr(setPos + 3, wherePos - setPos - 3));
-            std::string wherePart = trim(sqlText.substr(wherePos + 5));
+            string wherePart = trim(sqlText.substr(wherePos + 5));
             q->where = parseCondition(wherePart);
         } else {
             setPart = trim(sqlText.substr(setPos + 3));
         }
 
-        // Parse set: assume single column=value
-        size_t eqPos = setPart.find('=');
-        if (eqPos != std::string::npos) {
-            std::string col = trim(setPart.substr(0, eqPos));
-            std::string val = stripQuotes(trim(setPart.substr(eqPos + 1)));
-            q->newValues[col] = Value(DataType::STRING, val);
+        // Parse SET clause: support multiple column=value pairs separated by commas
+        auto assignments = split(setPart, ',');
+        for (const auto& assignment : assignments) {
+            size_t eqPos = assignment.find('=');
+            if (eqPos != string::npos) {
+                string col = trim(assignment.substr(0, eqPos));
+                string valStr = trim(assignment.substr(eqPos + 1));
+                DataType inferredType = inferDataType(valStr);
+                q->newValues[col] = Value(inferredType, stripQuotes(valStr));
+            }
         }
 
         return q;
@@ -400,19 +582,30 @@ Query* Parser::parse(const std::string& sqlText) {
         
         DeleteQuery* q = new DeleteQuery();
         size_t fromPos = upperQuery.find("FROM");
-        if (fromPos == std::string::npos) { delete q; return nullptr; }
+        if (fromPos == string::npos) { delete q; return nullptr; }
 
         size_t wherePos = upperQuery.find("WHERE");
-        if (wherePos != std::string::npos) {
-            q->tableName = trim(sqlText.substr(fromPos + 4, wherePos - fromPos - 4));
-            std::string wherePart = trim(sqlText.substr(wherePos + 5));
+        string tablePart;
+        if (wherePos != string::npos) {
+            tablePart = trim(sqlText.substr(fromPos + 4, wherePos - fromPos - 4));
+            string wherePart = trim(sqlText.substr(wherePos + 5));
             q->where = parseCondition(wherePart);
         } else {
-            q->tableName = trim(sqlText.substr(fromPos + 4));
+            tablePart = trim(sqlText.substr(fromPos + 4));
+        }
+
+        // Extract table name and handle alias
+        auto tableParts = split(tablePart, ' ');
+        if (tableParts.size() >= 2) {
+            q->tableName = tableParts[0];
+            q->tableAlias = tableParts[1];
+        } else {
+            q->tableName = tablePart;
+            q->tableAlias = tablePart; // No separate alias
         }
 
         return q;
-    } else if (upperQuery.find("CREATE") == 0 && upperQuery.find("TABLE") != std::string::npos) {
+    } else if (upperQuery.find("CREATE") == 0 && upperQuery.find("TABLE") != string::npos) {
         // Validate CREATE has proper spacing
         if (!hasProperSpacing(upperQuery, "CREATE", 0)) {
             return nullptr;
@@ -430,13 +623,13 @@ Query* Parser::parse(const std::string& sqlText) {
         size_t openParen = sqlText.find('(', tablePos);
         size_t closeParen = sqlText.rfind(')');
         
-        if (openParen == std::string::npos || closeParen == std::string::npos) {
+        if (openParen == string::npos || closeParen == string::npos) {
             delete q;
             return nullptr;
         }
 
         // Extract table name and validate proper spacing
-        std::string tableNamePart = sqlText.substr(tablePos + 5, openParen - tablePos - 5);
+        string tableNamePart = sqlText.substr(tablePos + 5, openParen - tablePos - 5);
         q->tableName = trim(tableNamePart);
         
         // Validate table name is valid identifier
@@ -445,12 +638,12 @@ Query* Parser::parse(const std::string& sqlText) {
             return nullptr;
         }
         
-        std::string colsDef = sqlText.substr(openParen + 1, closeParen - openParen - 1);
+        string colsDef = sqlText.substr(openParen + 1, closeParen - openParen - 1);
 
         // Parse columns: column_name TYPE [PRIMARY KEY] [REFERENCES table(column)], ...
         auto defs = split(colsDef, ',');
         for (auto& def : defs) {
-            std::string defUpper = toUpper(def);
+            string defUpper = toUpper(def);
             auto parts = split(trim(def), ' ');
             if (parts.size() >= 2) {
                 Column col;
@@ -463,34 +656,39 @@ Query* Parser::parse(const std::string& sqlText) {
                 }
                 
                 // Parse data type and validate it
-                std::string typeStr = toUpper(parts[1]);
+                string typeStr = toUpper(parts[1]);
                 if (!isValidDataType(typeStr)) {
                     delete q; // Invalid data type
                     return nullptr;
                 }
                 
                 DataType type = DataType::STRING;
-                if (typeStr.find("INT") != std::string::npos) type = DataType::INTEGER;
-                else if (typeStr.find("VARCHAR") != std::string::npos) type = DataType::VARCHAR;
-                else if (typeStr.find("FLOAT") != std::string::npos || typeStr.find("DOUBLE") != std::string::npos) type = DataType::FLOAT;
-                else if (typeStr.find("BOOL") != std::string::npos) type = DataType::BOOLEAN;
+                if (typeStr.find("INT") != string::npos) type = DataType::INTEGER;
+                else if (typeStr.find("VARCHAR") != string::npos) type = DataType::VARCHAR;
+                else if (typeStr.find("FLOAT") != string::npos || typeStr.find("DOUBLE") != string::npos) type = DataType::FLOAT;
+                else if (typeStr.find("BOOL") != string::npos) type = DataType::BOOLEAN;
                 col.type = type;
                 
                 // Check for PRIMARY KEY
-                if (defUpper.find("PRIMARY") != std::string::npos && defUpper.find("KEY") != std::string::npos) {
+                if (defUpper.find("PRIMARY") != string::npos && defUpper.find("KEY") != string::npos) {
                     col.isPrimaryKey = true;
+                }
+                
+                // Check for UNIQUE constraint
+                if (defUpper.find("UNIQUE") != string::npos) {
+                    col.isUnique = true;
                 }
                 
                 // Check for FOREIGN KEY (REFERENCES table(column))
                 size_t refPos = defUpper.find("REFERENCES");
-                if (refPos != std::string::npos) {
+                if (refPos != string::npos) {
                     col.isForeignKey = true;
-                    std::string refPart = trim(def.substr(refPos + 10));
+                    string refPart = trim(def.substr(refPos + 10));
                     size_t parenPos = refPart.find('(');
-                    if (parenPos != std::string::npos) {
+                    if (parenPos != string::npos) {
                         col.foreignTable = trim(refPart.substr(0, parenPos));
                         size_t closeParenPos = refPart.find(')');
-                        if (closeParenPos != std::string::npos) {
+                        if (closeParenPos != string::npos) {
                             col.foreignColumn = trim(refPart.substr(parenPos + 1, closeParenPos - parenPos - 1));
                         }
                     }
@@ -506,7 +704,7 @@ Query* Parser::parse(const std::string& sqlText) {
         }
 
         return q;
-    } else if (upperQuery.find("DROP") == 0 && upperQuery.find("TABLE") != std::string::npos) {
+    } else if (upperQuery.find("DROP") == 0 && upperQuery.find("TABLE") != string::npos) {
         // Validate DROP has proper spacing
         if (!hasProperSpacing(upperQuery, "DROP", 0)) {
             return nullptr;
@@ -514,7 +712,7 @@ Query* Parser::parse(const std::string& sqlText) {
         
         DropTableQuery* q = new DropTableQuery();
         size_t tablePos = upperQuery.find("TABLE");
-        if (tablePos == std::string::npos) {
+        if (tablePos == string::npos) {
             delete q;
             return nullptr;
         }
@@ -525,9 +723,32 @@ Query* Parser::parse(const std::string& sqlText) {
             return nullptr;
         }
 
-        q->tableName = trim(sqlText.substr(tablePos + 5));
+        // Check for IF EXISTS
+        size_t ifExistsPos = upperQuery.find("IF EXISTS", tablePos);
+        string tablesPart;
         
-        if (q->tableName.empty()) {
+        if (ifExistsPos != string::npos && ifExistsPos > tablePos) {
+            q->ifExists = true;
+            tablesPart = trim(sqlText.substr(ifExistsPos + 9)); // After "IF EXISTS"
+        } else {
+            tablesPart = trim(sqlText.substr(tablePos + 5)); // After "TABLE"
+        }
+        
+        if (tablesPart.empty()) {
+            delete q;
+            return nullptr;
+        }
+
+        // Parse multiple table names (comma-separated)
+        auto tableNames = split(tablesPart, ',');
+        for (const auto& tableName : tableNames) {
+            string trimmedName = trim(tableName);
+            if (!trimmedName.empty()) {
+                q->tableNames.push_back(trimmedName);
+            }
+        }
+        
+        if (q->tableNames.empty()) {
             delete q;
             return nullptr;
         }

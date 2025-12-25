@@ -8,6 +8,39 @@
 #include "DropTableQuery.h"
 #include <algorithm>
 
+using namespace std;
+
+// Helper function to get type name as string
+static string getTypeName(DataType type) {
+    switch (type) {
+        case DataType::INTEGER: return "INTEGER";
+        case DataType::FLOAT: return "FLOAT";
+        case DataType::BOOLEAN: return "BOOLEAN";
+        case DataType::STRING: return "STRING";
+        case DataType::VARCHAR: return "VARCHAR";
+        case DataType::DATE: return "DATE";
+        default: return "UNKNOWN";
+    }
+}
+
+// Helper function to extract column name from qualified name (e.g., "alias.column" -> "column")
+static string extractColumnName(const string& colName, const string& tableAlias) {
+    size_t dotPos = colName.find('.');
+    if (dotPos != string::npos) {
+        // Has prefix (e.g., "alias.column")
+        string prefix = colName.substr(0, dotPos);
+        string suffix = colName.substr(dotPos + 1);
+        
+        // Check if prefix matches the table alias
+        if (prefix == tableAlias) {
+            return suffix; // Return just the column name
+        }
+        // If prefix doesn't match, return as is (will fail validation later)
+        return colName;
+    }
+    // No prefix, return as is
+    return colName;
+}
 
 void QueryExecutor::execute(Query* q, Database& db) {
     if (!q) return;
@@ -59,11 +92,11 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
     }
 
-    std::vector<Row> selected = table->selectRows(q->where);
+    vector<Row> selected = table->selectRows(q->where);
 
     // Handle JOINs
-    std::vector<Column> allColumns = table->getColumns();
-    std::vector<Row> joinedRows = selected;
+    vector<Column> allColumns = table->getColumns();
+    vector<Row> joinedRows = selected;
     
     for (const auto& join : q->joins) {
         Table* joinTable = db.getTable(join.tableName);
@@ -102,31 +135,126 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
         
         // Perform join
-        std::vector<Row> newJoinedRows;
-        for (const auto& leftRow : joinedRows) {
-            bool matched = false;
-            for (const auto& rightRow : joinTableRows) {
-                if (leftRow.values[leftColIdx] == rightRow.values[rightColIdx]) {
-                    // Merge rows
+        vector<Row> newJoinedRows;
+        
+        // Process based on join type
+        if (join.joinType == "INNER") {
+            // INNER JOIN: only include matching rows
+            for (const auto& leftRow : joinedRows) {
+                // Validate leftColIdx is in range
+                if (leftColIdx >= leftRow.values.size()) continue;
+                
+                for (const auto& rightRow : joinTableRows) {
+                    // Validate rightColIdx is in range
+                    if (rightColIdx >= rightRow.values.size()) continue;
+                    
+                    // For JOIN condition: handle NULL values properly
+                    // NULL values never match anything (including other NULLs) in SQL JOIN semantics
+                    const Value& leftVal = leftRow.values[leftColIdx];
+                    const Value& rightVal = rightRow.values[rightColIdx];
+                    
+                    // Only match if both are non-NULL and equal
+                    if (!leftVal.isNull && !rightVal.isNull && leftVal.data == rightVal.data) {
+                        // Merge rows
+                        Row mergedRow;
+                        mergedRow.values = leftRow.values;
+                        for (const auto& val : rightRow.values) {
+                            mergedRow.values.push_back(val);
+                        }
+                        newJoinedRows.push_back(mergedRow);
+                    }
+                }
+            }
+        } else if (join.joinType == "LEFT") {
+            // LEFT JOIN: include all left rows, matching right rows where possible
+            for (const auto& leftRow : joinedRows) {
+                bool leftHasMatch = false;
+                
+                // Validate leftColIdx is in range
+                if (leftColIdx < leftRow.values.size()) {
+                    const Value& leftVal = leftRow.values[leftColIdx];
+                    
+                    for (const auto& rightRow : joinTableRows) {
+                        // Validate rightColIdx is in range
+                        if (rightColIdx >= rightRow.values.size()) continue;
+                        
+                        const Value& rightVal = rightRow.values[rightColIdx];
+                        
+                        // Only match if both are non-NULL and equal
+                        if (!leftVal.isNull && !rightVal.isNull && leftVal.data == rightVal.data) {
+                            // Merge rows
+                            Row mergedRow;
+                            mergedRow.values = leftRow.values;
+                            for (const auto& val : rightRow.values) {
+                                mergedRow.values.push_back(val);
+                            }
+                            newJoinedRows.push_back(mergedRow);
+                            leftHasMatch = true;
+                        }
+                    }
+                }
+                
+                // For LEFT JOIN, if no match found, include left row with NULL right values
+                if (!leftHasMatch) {
                     Row mergedRow;
                     mergedRow.values = leftRow.values;
-                    for (const auto& val : rightRow.values) {
-                        mergedRow.values.push_back(val);
+                    // Add NULL values for all joined table columns
+                    for (const auto& col : joinTableColumns) {
+                        mergedRow.values.push_back(Value::createNull(col.type));
                     }
                     newJoinedRows.push_back(mergedRow);
-                    matched = true;
+                }
+            }
+        } else if (join.joinType == "RIGHT") {
+            // RIGHT JOIN: include all right rows, matching left rows where possible
+            vector<bool> rightRowMatched(joinTableRows.size(), false);
+            
+            // Store the number of columns before adding the join table columns
+            size_t leftColumnsCount = allColumns.size();
+            
+            // First pass: find and add all matching rows
+            for (const auto& leftRow : joinedRows) {
+                // Validate leftColIdx is in range
+                if (leftColIdx >= leftRow.values.size()) continue;
+                
+                const Value& leftVal = leftRow.values[leftColIdx];
+                
+                for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                    const auto& rightRow = joinTableRows[rightIdx];
+                    
+                    // Validate rightColIdx is in range
+                    if (rightColIdx >= rightRow.values.size()) continue;
+                    
+                    const Value& rightVal = rightRow.values[rightColIdx];
+                    
+                    // Only match if both are non-NULL and equal
+                    if (!leftVal.isNull && !rightVal.isNull && leftVal.data == rightVal.data) {
+                        // Merge rows
+                        Row mergedRow;
+                        mergedRow.values = leftRow.values;
+                        for (const auto& val : rightRow.values) {
+                            mergedRow.values.push_back(val);
+                        }
+                        newJoinedRows.push_back(mergedRow);
+                        rightRowMatched[rightIdx] = true;
+                    }
                 }
             }
             
-            // For LEFT JOIN, include unmatched rows
-            if (!matched && join.joinType == "LEFT") {
-                Row mergedRow;
-                mergedRow.values = leftRow.values;
-                // Add NULL values for joined table columns
-                for (size_t i = 0; i < joinTableColumns.size(); ++i) {
-                    mergedRow.values.emplace_back(DataType::STRING, "");
+            // Second pass: add all unmatched right rows with NULL left values
+            for (size_t rightIdx = 0; rightIdx < joinTableRows.size(); ++rightIdx) {
+                if (!rightRowMatched[rightIdx]) {
+                    Row mergedRow;
+                    // Add NULL values for all left columns (before this join)
+                    for (size_t i = 0; i < leftColumnsCount; ++i) {
+                        mergedRow.values.push_back(Value::createNull(allColumns[i].type));
+                    }
+                    // Add actual values from the unmatched right row
+                    for (const auto& val : joinTableRows[rightIdx].values) {
+                        mergedRow.values.push_back(val);
+                    }
+                    newJoinedRows.push_back(mergedRow);
                 }
-                newJoinedRows.push_back(mergedRow);
             }
         }
         
@@ -138,8 +266,8 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     }
 
     // Handle GROUP BY
-    std::vector<Row> groupedRows = joinedRows;
-    std::vector<Column> groupedColumns = allColumns;
+    vector<Row> groupedRows = joinedRows;
+    vector<Column> groupedColumns = allColumns;
     
     if (!q->groupBy.empty() || !q->aggregates.empty()) {
         // Validate GROUP BY columns exist
@@ -175,7 +303,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
         
         // Find group by column indices
-        std::vector<size_t> groupByIndices;
+        vector<size_t> groupByIndices;
         for (const auto& colName : q->groupBy) {
             for (size_t i = 0; i < allColumns.size(); ++i) {
                 if (allColumns[i].name == colName) {
@@ -186,9 +314,9 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         }
         
         // Group rows by the specified columns
-        std::map<std::string, std::vector<Row>> groups;
+        map<string, vector<Row>> groups;
         for (const auto& row : joinedRows) {
-            std::string groupKey;
+            string groupKey;
             for (size_t idx : groupByIndices) {
                 if (idx < row.values.size()) {
                     groupKey += row.values[idx].data + "|";
@@ -202,27 +330,51 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             
             groups[groupKey].push_back(row);
         }
+        groupedRows.clear();
         
         // Calculate aggregates for each group
         groupedRows.clear();
         groupedColumns.clear();
         
-        // Add GROUP BY columns first
-        for (const auto& colName : q->groupBy) {
-            for (const auto& col : allColumns) {
-                if (col.name == colName) {
-                    groupedColumns.push_back(col);
-                    break;
+        // If we have aggregates but explicit columns selected, use SELECT order
+        // Otherwise, GROUP BY columns first, then aggregates
+        if (!q->columns.empty() && q->columns[0] != "*") {
+            // User specified column order in SELECT - respect it
+            // First add non-aggregate columns from SELECT
+            for (const auto& colName : q->columns) {
+                for (const auto& col : allColumns) {
+                    if (col.name == colName) {
+                        groupedColumns.push_back(col);
+                        break;
+                    }
                 }
             }
-        }
-        
-        // Add aggregate result columns
-        for (const auto& agg : q->aggregates) {
-            Column aggCol;
-            aggCol.name = agg.alias;
-            aggCol.type = DataType::FLOAT; // Aggregates return numeric values
-            groupedColumns.push_back(aggCol);
+            
+            // Then add aggregate columns in SELECT order
+            for (const auto& agg : q->aggregates) {
+                Column aggCol;
+                aggCol.name = agg.alias;
+                aggCol.type = DataType::FLOAT;
+                groupedColumns.push_back(aggCol);
+            }
+        } else {
+            // No explicit SELECT columns, use default order: GROUP BY columns first
+            for (const auto& colName : q->groupBy) {
+                for (const auto& col : allColumns) {
+                    if (col.name == colName) {
+                        groupedColumns.push_back(col);
+                        break;
+                    }
+                }
+            }
+            
+            // Then add aggregate columns
+            for (const auto& agg : q->aggregates) {
+                Column aggCol;
+                aggCol.name = agg.alias;
+                aggCol.type = DataType::FLOAT;
+                groupedColumns.push_back(aggCol);
+            }
         }
         
         // Process each group
@@ -232,14 +384,42 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             
             Row resultRow;
             
-            // Add GROUP BY column values (from first row of group)
-            for (size_t idx : groupByIndices) {
-                if (idx < groupRows[0].values.size()) {
-                    resultRow.values.push_back(groupRows[0].values[idx]);
+            // Build row in the same order as groupedColumns
+            // If SELECT specified columns, follow that order
+            if (!q->columns.empty() && q->columns[0] != "*") {
+                // Process in SELECT order
+                for (const auto& col : groupedColumns) {
+                    bool isAggregate = false;
+                    
+                    // Check if this column is an aggregate
+                    for (const auto& agg : q->aggregates) {
+                        if (col.name == agg.alias) {
+                            isAggregate = true;
+                            // Calculate aggregate (will be added below)
+                            break;
+                        }
+                    }
+                    
+                    if (!isAggregate) {
+                        // It's a GROUP BY column, add its value
+                        for (size_t idx : groupByIndices) {
+                            if (allColumns[idx].name == col.name && idx < groupRows[0].values.size()) {
+                                resultRow.values.push_back(groupRows[0].values[idx]);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Default order: GROUP BY columns first
+                for (size_t idx : groupByIndices) {
+                    if (idx < groupRows[0].values.size()) {
+                        resultRow.values.push_back(groupRows[0].values[idx]);
+                    }
                 }
             }
             
-            // Calculate aggregate values
+            // Calculate and add aggregate values in order
             for (const auto& agg : q->aggregates) {
                 // Find column index for this aggregate (unless it's COUNT(*))
                 size_t colIdx = 0;
@@ -275,7 +455,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     for (const auto& row : groupRows) {
                         if (colIdx < row.values.size()) {
                             try {
-                                double val = std::stod(row.values[colIdx].data);
+                                double val = stod(row.values[colIdx].data);
                                 
                                 if (agg.function == "SUM" || agg.function == "AVG") {
                                     sum += val;
@@ -309,7 +489,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
                     }
                 }
                 
-                resultRow.values.emplace_back(DataType::FLOAT, std::to_string(result));
+                resultRow.values.emplace_back(DataType::FLOAT, to_string(result));
             }
             
             groupedRows.push_back(resultRow);
@@ -336,7 +516,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             }
         }
         
-        std::vector<size_t> orderByIndices;
+        vector<size_t> orderByIndices;
         for (const auto& rule : q->orderBy) {
             for (size_t i = 0; i < allColumns.size(); ++i) {
                 if (allColumns[i].name == rule.column) {
@@ -346,7 +526,7 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
             }
         }
         
-        std::sort(groupedRows.begin(), groupedRows.end(), [&](const Row& a, const Row& b) {
+        sort(groupedRows.begin(), groupedRows.end(), [&](const Row& a, const Row& b) {
             for (size_t i = 0; i < q->orderBy.size() && i < orderByIndices.size(); ++i) {
                 size_t idx = orderByIndices[i];
                 if (idx >= a.values.size() || idx >= b.values.size()) continue;
@@ -364,8 +544,8 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     }
 
     // Handle column projection
-    std::vector<Column> resultColumns;
-    std::vector<Row> projectedRows;
+    vector<Column> resultColumns;
+    vector<Row> projectedRows;
     
     // Check if selecting all columns (*)
     bool selectAll = (q->columns.size() == 1 && q->columns[0] == "*" && q->aggregates.empty());
@@ -380,22 +560,98 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
         projectedRows = groupedRows;
     } else {
         // Project only requested columns (no GROUP BY/aggregates)
-        // Build column index mapping
-        std::map<std::string, size_t> columnIndexMap;
+        // Build column index mapping with table prefix support
+        map<string, size_t> columnIndexMap;
+        map<string, vector<size_t>> tableColumnMap; // table/alias -> list of column indices
+        
+        // Build maps for quick lookup
+        size_t currentTableColCount = table->getColumns().size();
+        
+        // Map main table columns
+        for (size_t i = 0; i < currentTableColCount; ++i) {
+            columnIndexMap[allColumns[i].name] = i;
+            tableColumnMap[q->tableName].push_back(i);
+            if (!q->tableAlias.empty()) {
+                tableColumnMap[q->tableAlias].push_back(i);
+            }
+        }
+        
+        // Map joined table columns
+        size_t colOffset = currentTableColCount;
+        for (const auto& join : q->joins) {
+            Table* joinTable = db.getTable(join.tableName);
+            if (joinTable) {
+                size_t joinColCount = joinTable->getColumns().size();
+                for (size_t i = 0; i < joinColCount; ++i) {
+                    size_t globalIdx = colOffset + i;
+                    columnIndexMap[allColumns[globalIdx].name] = globalIdx;
+                    tableColumnMap[join.tableName].push_back(globalIdx);
+                }
+                colOffset += joinColCount;
+            }
+        }
+        
+        // Also build a map for all columns
         for (size_t i = 0; i < allColumns.size(); ++i) {
             columnIndexMap[allColumns[i].name] = i;
         }
         
-        // Get indices of requested columns
-        std::vector<size_t> selectedIndices;
+        // Get indices of requested columns, expanding alias.* patterns
+        vector<size_t> selectedIndices;
         for (const auto& colName : q->columns) {
-            auto it = columnIndexMap.find(colName);
-            if (it != columnIndexMap.end()) {
-                selectedIndices.push_back(it->second);
-                resultColumns.push_back(allColumns[it->second]);
+            // Check if it's a wildcard pattern (alias.* or table.*)
+            size_t dotPos = colName.find('.');
+            if (dotPos != string::npos) {
+                string prefix = colName.substr(0, dotPos);
+                string suffix = colName.substr(dotPos + 1);
+                
+                if (suffix == "*") {
+                    // Expand table.* or alias.*
+                    auto it = tableColumnMap.find(prefix);
+                    if (it != tableColumnMap.end()) {
+                        // Add all columns from this table
+                        for (size_t idx : it->second) {
+                            selectedIndices.push_back(idx);
+                            resultColumns.push_back(allColumns[idx]);
+                        }
+                    } else {
+                        // Check if it's in tableAliases map
+                        auto aliasIt = q->tableAliases.find(prefix);
+                        if (aliasIt != q->tableAliases.end()) {
+                            // Look up by actual table name
+                            auto tableIt = tableColumnMap.find(aliasIt->second);
+                            if (tableIt != tableColumnMap.end()) {
+                                for (size_t idx : tableIt->second) {
+                                    selectedIndices.push_back(idx);
+                                    resultColumns.push_back(allColumns[idx]);
+                                }
+                            }
+                        } else {
+                            error("Table or alias not found: " + prefix);
+                            return;
+                        }
+                    }
+                } else {
+                    // It's table.column or alias.column - just use the column name
+                    auto it = columnIndexMap.find(suffix);
+                    if (it != columnIndexMap.end()) {
+                        selectedIndices.push_back(it->second);
+                        resultColumns.push_back(allColumns[it->second]);
+                    } else {
+                        error("Column not found: " + colName);
+                        return;
+                    }
+                }
             } else {
-                error("Column not found: " + colName);
-                return;
+                // Regular column name
+                auto it = columnIndexMap.find(colName);
+                if (it != columnIndexMap.end()) {
+                    selectedIndices.push_back(it->second);
+                    resultColumns.push_back(allColumns[it->second]);
+                } else {
+                    error("Column not found: " + colName);
+                    return;
+                }
             }
         }
         
@@ -412,9 +668,10 @@ void QueryExecutor::executeSelect(SelectQuery* q, Database& db) {
     }
 
     // Call the result callback if set
+    if(!(resultColumns.size()==0 && projectedRows.size()==0))
     resultTable(resultColumns, projectedRows);
 
-    output("(" + std::to_string(projectedRows.size()) + " row(s) selected)");
+    output("(" + to_string(projectedRows.size()) + " row(s) selected)",false);
 }
 
 void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
@@ -426,24 +683,61 @@ void QueryExecutor::executeInsert(InsertQuery* q, Database& db) {
 
     // If specific columns are specified, use insertPartialRow
     if (!q->specifiedColumns.empty()) {
-        // Validate columns exist
-        for (const auto& colName : q->specifiedColumns) {
-            if (table->getColumnIndex(colName) == static_cast<size_t>(-1)) {
-                error("Column not found: " + colName);
+        // Validate columns exist and types match
+        const auto& columns = table->getColumns();
+        for (size_t i = 0; i < q->specifiedColumns.size() && i < q->values.values.size(); ++i) {
+            size_t colIdx = table->getColumnIndex(q->specifiedColumns[i]);
+            if (colIdx == static_cast<size_t>(-1)) {
+                error("Column not found: " + q->specifiedColumns[i]);
+                return;
+            }
+            
+            // Validate type compatibility
+            if (!q->values.values[i].isValidForType(columns[colIdx].type)) {
+                error("Type mismatch for column '" + q->specifiedColumns[i] + 
+                      "': cannot insert value '" + q->values.values[i].data + 
+                      "' into " + getTypeName(columns[colIdx].type) + " column");
                 return;
             }
         }
-        table->insertPartialRow(q->specifiedColumns, q->values);
+        
+        if (!table->insertPartialRow(q->specifiedColumns, q->values)) {
+            error("Failed to insert row: constraint violation");
+            return;
+        }
     } else {
+
         // Insert all columns
-        table->insertRow(q->values);
+        // Validate all column types match
+        const auto& columns = table->getColumns();
+        if (q->values.values.size() != columns.size()) {
+            error("Column count mismatch: expected " + to_string(columns.size()) + 
+                  ", got " + to_string(q->values.values.size()));
+            return;
+        }
+        
+        for (size_t i = 0; i < q->values.values.size(); ++i) {
+            if (!q->values.values[i].isValidForType(columns[i].type)) {
+                error("Type mismatch for column '" + columns[i].name + 
+                      "': cannot insert value '" + q->values.values[i].data + 
+                      "' into " + getTypeName(columns[i].type) + " column");
+                return;
+            }
+        }
+        
+        if (!table->insertRow(q->values)) {
+            error("Failed to insert row: constraint violation");
+            return;
+        }
+        if(!table->insertRow(q->values))
+            error("Error with keys");
     }
     
     // Save to CSV immediately
-    // std::string csvPath = "data/" + q->tableName + ".csv";
+    // string csvPath = "data/" + q->tableName + ".csv";
     // table->saveToCSV(csvPath);
     
-    output("1 row inserted");
+    output("1 row inserted",true);
 }
 
 void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
@@ -453,13 +747,20 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         return;
     }
 
-    // Validate SET columns exist
+    // Validate SET columns exist and types match
     const auto& columns = table->getColumns();
+    map<string, Value> resolvedNewValues; // Column name (without alias) -> Value
+    
     for (const auto& pair : q->newValues) {
+        // Extract actual column name (strip alias prefix if present)
+        string actualColName = extractColumnName(pair.first, q->tableAlias);
+        
         bool found = false;
+        const Column* targetCol = nullptr;
         for (const auto& col : columns) {
-            if (col.name == pair.first) {
+            if (col.name == actualColName) {
                 found = true;
+                targetCol = &col;
                 break;
             }
         }
@@ -467,13 +768,28 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
             error("Column not found: " + pair.first);
             return;
         }
+        
+        // Validate type compatibility
+        if (targetCol && !pair.second.isValidForType(targetCol->type)) {
+            error("Type mismatch for column '" + pair.first + 
+                  "': cannot update with value '" + pair.second.data + 
+                  "' into " + getTypeName(targetCol->type) + " column");
+            return;
+        }
+        
+        // Store with actual column name
+        resolvedNewValues[actualColName] = pair.second;
     }
     
+    // Resolve WHERE column aliases (modifies in place)
+    Condition resolvedWhere = q->where;
+    resolvedWhere.resolveColumnAlias(q->tableAlias);
+    
     // Validate WHERE column exists (if specified)
-    if (!q->where.column.empty()) {
+    if (!resolvedWhere.column.empty()) {
         bool found = false;
         for (const auto& col : columns) {
-            if (col.name == q->where.column) {
+            if (col.name == resolvedWhere.column) {
                 found = true;
                 break;
             }
@@ -484,13 +800,13 @@ void QueryExecutor::executeUpdate(UpdateQuery* q, Database& db) {
         }
     }
 
-    table->updateRows(q->where, q->newValues);
+    table->updateRows(resolvedWhere, resolvedNewValues);
     
     // Save to CSV immediately
-    std::string csvPath = "data/" + q->tableName + ".csv";
+    string csvPath = "data/" + q->tableName + ".csv";
     table->saveToCSV(csvPath);
     
-    output("Rows updated");
+    output("Rows updated",true);
 }
 
 void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
@@ -500,12 +816,16 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
         return;
     }
 
+    // Resolve WHERE column aliases (modifies in place)
+    Condition resolvedWhere = q->where;
+    resolvedWhere.resolveColumnAlias(q->tableAlias);
+    
     // Validate WHERE column exists (if specified)
-    if (!q->where.column.empty()) {
+    if (!resolvedWhere.column.empty()) {
         const auto& columns = table->getColumns();
         bool found = false;
         for (const auto& col : columns) {
-            if (col.name == q->where.column) {
+            if (col.name == resolvedWhere.column) {
                 found = true;
                 break;
             }
@@ -516,13 +836,13 @@ void QueryExecutor::executeDelete(DeleteQuery* q, Database& db) {
         }
     }
 
-    table->deleteRows(q->where);
+    table->deleteRows(resolvedWhere);
     
     // Save to CSV immediately
-    std::string csvPath = "data/" + q->tableName + ".csv";
+    string csvPath = "data/" + q->tableName + ".csv";
     table->saveToCSV(csvPath);
     
-    output("Rows deleted");
+    output("Rows deleted",true);
 }
 
 void QueryExecutor::executeCreateTable(CreateTableQuery* q, Database& db) {
@@ -533,18 +853,36 @@ void QueryExecutor::executeCreateTable(CreateTableQuery* q, Database& db) {
     }
 
     db.createTable(q->tableName, q->columns);
-    output("Table '" + q->tableName + "' created successfully");
+    output("Table '" + q->tableName + "' created successfully",true);
     tree();
 }
 
 void QueryExecutor::executeDropTable(DropTableQuery* q, Database& db) {
-    // Check if table exists
-    if (!db.getTable(q->tableName)) {
-        error("Table not found: " + q->tableName);
-        return;
-    }
+    int droppedCount = 0;
+    
+    for (const auto& tableName : q->tableNames) {
+        // Check if table exists
+        if (!db.getTable(tableName)) {
+            if (!q->ifExists) {
+                error("Table not found: " + tableName);
+                return;
+            }
+            // If IF EXISTS is specified, silently skip non-existent tables
+            continue;
+        }
 
-    db.dropTable(q->tableName);
-    output("Table '" + q->tableName + "' dropped successfully");
-    tree();
+        db.dropTable(tableName);
+        droppedCount++;
+    }
+    
+    if (droppedCount > 0) {
+        if (droppedCount == 1) {
+            output("Table '" + q->tableNames[0] + "' dropped successfully",true);
+        } else {
+            output(to_string(droppedCount) + " tables dropped successfully",true);
+        }
+        tree();
+    } else if (q->ifExists) {
+        output("No tables to drop",true);
+    }
 }

@@ -1,9 +1,0 @@
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/DB-engine.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/edit_cache.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/rebuild_cache.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/list_install_components.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/install.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/install/local.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/install/strip.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/DB-engine_autogen_timestamp_deps.dir
-D:/Projects/ITI/04-OOP/Project/DB-engine/CMakeFiles/DB-engine_autogen.dir

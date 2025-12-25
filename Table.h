@@ -7,30 +7,38 @@
 #include "Row.h"
 #include "Condition.h"
 
+using namespace std;
+
+// Forward declaration
+class Database;
+
 class Table {
 private:
-    std::string name;
-    std::vector<Column> columns;
-    std::vector<Row> rows;
-    std::map<std::string, size_t> columnIndexMap;
+    string name;
+    vector<Column> columns;
+    vector<Row> rows;
+    map<string, size_t> columnIndexMap;
 
     void rebuildIndexMap();
+    bool validatePrimaryKey(const Row& r) const;
+    bool validateUniqueConstraints(const Row& r, size_t excludeRowIdx) const;
+    bool validateForeignKeys(const Row& r, Database* db) const;
 
 public:
     Table();
-    Table(const std::string& n, const std::vector<Column>& cols);
-    std::string getName() const { return name; }
+    Table(const string& n, const vector<Column>& cols);
+    string getName() const { return name; }
 
-    void insertRow(const Row& r);
-    void insertPartialRow(const std::vector<std::string>& columnNames, const Row& values);
-    std::vector<Row> selectRows(const Condition& c) const;
-    void updateRows(const Condition& c, const std::map<std::string, Value>& nv);
+    bool insertRow(const Row& r, Database* db = nullptr);
+    bool insertPartialRow(const vector<string>& columnNames, const Row& values, Database* db = nullptr);
+    vector<Row> selectRows(const Condition& c) const;
+    bool updateRows(const Condition& c, const map<string, Value>& nv, Database* db = nullptr);
     void deleteRows(const Condition& c);
 
-    void loadFromCSV(const std::string& filePath);
-    void saveToCSV(const std::string& filePath) const;
+    void loadFromCSV(const string& filePath);
+    void saveToCSV(const string& filePath) const;
 
-    const std::vector<Column>& getColumns() const { return columns; }
-    const std::vector<Row>& getRows() const { return rows; }
-    size_t getColumnIndex(const std::string& columnName) const;
+    const vector<Column>& getColumns() const { return columns; }
+    const vector<Row>& getRows() const { return rows; }
+    size_t getColumnIndex(const string& columnName) const;
 };

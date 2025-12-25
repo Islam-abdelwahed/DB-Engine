@@ -2,8 +2,12 @@
 #pragma once
 #include <string>
 #include "Query.h"
+using namespace std;
+
+
+using namespace std;
 
 class Parser {
 public:
-    Query* parse(const std::string& sqlText);
+    Query* parse(const string& sqlText);
 };

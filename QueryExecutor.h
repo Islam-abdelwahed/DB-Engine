@@ -9,11 +9,14 @@
 #include "CreateTableQuery.h"
 #include "DropTableQuery.h"
 #include <functional>
+using namespace std;
 
-using OutputCallback = std::function<void(const std::string&)>;
-using ErrorCallback = std::function<void(const std::string&)>;
-using ResultTableCallback = std::function<void(const std::vector<Column>&, const std::vector<Row>&)>;
-using TreeRefreshCallback = std::function<void()>;
+using namespace std;
+
+using OutputCallback = function<void(const string&,const bool foucs)>;
+using ErrorCallback = function<void(const string&)>;
+using ResultTableCallback = function<void(const vector<Column>&, const vector<Row>&)>;
+using TreeRefreshCallback = function<void()>;
 
 class QueryExecutor {
 public:
@@ -31,8 +34,8 @@ private:
     void executeCreateTable(CreateTableQuery* q, Database& db);
     void executeDropTable(DropTableQuery* q, Database& db);
 
-    OutputCallback output = [](const std::string& s) {};
-    ErrorCallback error = [](const std::string& s) {};
+    OutputCallback output = [](const string& s,const bool focus) {};
+    ErrorCallback error = [](const string& s) {};
     TreeRefreshCallback tree = []() {};
-    ResultTableCallback resultTable = [](const std::vector<Column>&, const std::vector<Row>&) {};
+    ResultTableCallback resultTable = [](const vector<Column>&, const vector<Row>&) {};
 };

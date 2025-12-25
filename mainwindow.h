@@ -30,7 +30,7 @@ private:
     QueryExecutor executor;
 
     void executeSQL(const QString& sql);
-    void printOutput(const QString& text);
+    void printOutput(const QString& text,const bool focus);
     void populateResultsTable(const std::vector<Column>& cols, const std::vector<Row>& rows);
     void printError(const QString& error);
     // void handleCreateTable(const std::string& query);

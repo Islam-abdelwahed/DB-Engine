@@ -6,6 +6,8 @@
 #include <QStandardItemModel>
 #include <QStandardItem>
 
+using namespace std;
+
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -20,17 +22,17 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     updateExplorerTree();
 
-    printOutput("Welcome to SQL Studio!\n");
-    printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n");
+    printOutput("Welcome to SQL Studio!\n",false);
+    printOutput("Database loaded: " + QString::number(database.getTableNames().size()) + " tables.\n\n",true);
 
     // Set callbacks for executor
-    executor.setOutputCallback([this](const std::string& s) {
-        printOutput(QString::fromStdString(s));
+    executor.setOutputCallback([this](const string& s,const bool focus) {
+        printOutput(QString::fromStdString(s), focus);
     });
-    executor.setErrorCallback([this](const std::string& s) {
+    executor.setErrorCallback([this](const string& s) {
         printError(QString::fromStdString(s));
     });
-    executor.setResultTableCallback([this](const std::vector<Column>& cols, const std::vector<Row>& rows) {
+    executor.setResultTableCallback([this](const vector<Column>& cols, const vector<Row>& rows) {
         populateResultsTable(cols, rows);
     });
     executor.setTreeRefreshCallback([this](){
@@ -55,18 +57,18 @@ void MainWindow::on_actionSave_triggered() {
 }
 
 void MainWindow::executeSQL(const QString& sql) {
-    std::string input = sql.trimmed().toStdString();
+    string input = sql.trimmed().toStdString();
     if (input.empty()) return;
-    printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + sql.toHtmlEscaped() + "</span>");
+    printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + sql.toHtmlEscaped() + "</span>",false);
     // Split multiple queries by semicolon
-    std::vector<std::string> queries;
-    std::string currentQuery;
+    vector<string> queries;
+    string currentQuery;
     for (char c : input) {
         if (c == ';') {
-            std::string trimmed = currentQuery;
+            string trimmed = currentQuery;
             // Trim whitespace
             size_t start = trimmed.find_first_not_of(" \t\n\r");
-            if (start != std::string::npos) {
+            if (start != string::npos) {
                 size_t end = trimmed.find_last_not_of(" \t\n\r");
                 trimmed = trimmed.substr(start, end - start + 1);
                 if (!trimmed.empty()) {
@@ -80,9 +82,9 @@ void MainWindow::executeSQL(const QString& sql) {
     }
     // Add last query if no trailing semicolon
     if (!currentQuery.empty()) {
-        std::string trimmed = currentQuery;
+        string trimmed = currentQuery;
         size_t start = trimmed.find_first_not_of(" \t\n\r");
-        if (start != std::string::npos) {
+        if (start != string::npos) {
             size_t end = trimmed.find_last_not_of(" \t\n\r");
             trimmed = trimmed.substr(start, end - start + 1);
             if (!trimmed.empty()) {
@@ -90,10 +92,49 @@ void MainWindow::executeSQL(const QString& sql) {
             }
         }
     }
+    
+    // Check if multiple queries without proper semicolon separation
+    if (queries.size() > 1) {
+        // Ensure each query was properly terminated (except possibly the last one)
+        for (size_t i = 0; i < queries.size() - 1; ++i) {
+            // All but the last query must have been terminated with semicolon
+            // This is already guaranteed by our parsing above
+        }
+    } else if (queries.size() == 1) {
+        // Check if there are multiple SQL statements without semicolons
+        // by looking for multiple SQL keywords
+        string query = queries[0];
+        string upperQuery;
+        for (char c : query) upperQuery += toupper(c);
+        
+        int statementCount = 0;
+        vector<string> keywords = {"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP"};
+        size_t searchPos = 0;
+        
+        for (const auto& keyword : keywords) {
+            searchPos = 0;
+            while ((searchPos = upperQuery.find(keyword, searchPos)) != string::npos) {
+                // Check if it's at the start or preceded by whitespace
+                if (searchPos == 0 || isspace(upperQuery[searchPos - 1])) {
+                    // Check if followed by whitespace or end of string
+                    size_t endPos = searchPos + keyword.length();
+                    if (endPos >= upperQuery.length() || isspace(upperQuery[endPos]) || upperQuery[endPos] == '(') {
+                        statementCount++;
+                    }
+                }
+                searchPos += keyword.length();
+            }
+        }
+        
+        if (statementCount > 1) {
+            printError("Error: Multiple SQL statements detected without semicolon separator. Please use ';' between statements.");
+            return;
+        }
+    }
 
     // Execute each query
     for (const auto& query : queries) {
-        printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + QString::fromStdString(query).toHtmlEscaped() + "</span>");
+        printOutput("<span style='color: #4A90E2;'><b>SQL&gt;</b> " + QString::fromStdString(query).toHtmlEscaped() + "</span>",false);
 
         try {
             Query* q = parser.parse(query);
@@ -103,11 +144,11 @@ void MainWindow::executeSQL(const QString& sql) {
             } else {
                 printError("Syntax error or unsupported query.");
             }
-        } catch (const std::exception& e) {
+        } catch (const exception& e) {
             printError("Exception: " + QString(e.what()));
         }
 
-        printOutput(""); // newline
+        printOutput("",false); // newline
     }
     updateExplorerTree(); // Refresh explorer after changes
 }
@@ -118,26 +159,32 @@ void MainWindow::updateExplorerTree() {
     QStandardItem *rootItem = new QStandardItem("Database");
     rootItem->setEditable(false);
     for (const auto& name : database.getTableNames()) {
-        QStandardItem* parent = new QStandardItem(QString::fromStdString(name));
-
-        // Example child
-        // parent->appendRow(new QStandardItem("columns..."));
-
-        rootItem->appendRow(parent);
+        QStandardItem* table = new QStandardItem(QString::fromStdString(name));
+        for (const auto& col : (database.getTable(name)->getColumns()))
+        {
+            QStandardItem* column = new QStandardItem(QString::fromStdString(col.name));
+            column->setIcon(QIcon(":icons/column.png"));
+            table->appendRow(column);
+        }
+        table->setIcon(QIcon(":icons/table.png"));
+        rootItem->appendRow(table);
     }
     model->appendRow(rootItem);
     ui->tables_tree->setModel(model);
-
     // Enable tree decorations
     ui->tables_tree->setRootIsDecorated(true);
     ui->tables_tree->setItemsExpandable(true);
     ui->tables_tree->setExpandsOnDoubleClick(true);
-     ui->tables_tree->expandAll();
+    // Expand only the root item
+    QModelIndex rootIndex = model->indexFromItem(rootItem);
+    ui->tables_tree->expand(rootIndex);
 }
 
-void MainWindow::printOutput(const QString& text) {
+void MainWindow::printOutput(const QString& text,const bool focus) {
     ui->outputText->append(text);
     QScrollBar *bar = ui->outputText->verticalScrollBar();
+    if(focus)
+    { ui->bottomTabs->setCurrentWidget(ui->output_tab);}
     bar->setValue(bar->maximum());
 }
 
@@ -149,13 +196,13 @@ void MainWindow::printError(const QString& error) {
     bar->setValue(bar->maximum());
 }
 
-void MainWindow::populateResultsTable(const std::vector<Column>& cols, const std::vector<Row>& rows) {
+void MainWindow::populateResultsTable(const vector<Column>& cols, const vector<Row>& rows) {
     // Clear previous content
 
     ui->bottomTabs->setCurrentWidget(ui->result_tab);
     ui->resultText->setFocus();
     if (cols.empty()) {
-        printOutput("(0 column(s) returned)");
+        printOutput("(0 column(s) returned)",false);
         return;
     }
 
@@ -209,14 +256,14 @@ void MainWindow::populateResultsTable(const std::vector<Column>& cols, const std
         html += "</tr>";
     }
 
-    html += "</table>";
+    html += "</table><br/><br/>";
     // Set the HTML content
     ui->resultText->append(html);
     // Scroll to top
     QScrollBar *bar = ui->resultText->verticalScrollBar();
     bar->setValue(0);
 
-    printOutput("(" + QString::number(rows.size()) + " row(s) selected)");
+    printOutput("(" + QString::number(rows.size()) + " row(s) selected)",false);
 }
 
 

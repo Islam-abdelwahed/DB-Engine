@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>column.png</file>
+        <file>table.png</file>
+        <file>save.png</file>
+        <file>Group 1.png</file>
+    </qresource>
+    <qresource prefix="/">
+        <file>Group 1.png</file>
+    </qresource>
+</RCC>

@@ -1247,10 +1247,6 @@
     </property>
    </widget>
    <action name="actionRun">
-    <property name="icon">
-     <iconset>
-      <normaloff>:/icons/run.png</normaloff>:/icons/run.png</iconset>
-    </property>
     <property name="text">
      <string>Run</string>
     </property>
@@ -1299,8 +1295,8 @@
   </action>
   <action name="actionExecute">
    <property name="icon">
-    <iconset>
-     <normaloff>Group 1.png</normaloff>Group 1.png</iconset>
+    <iconset resource="resources.qrc">
+     <normaloff>:/icons/Group 1.png</normaloff>:/icons/Group 1.png</iconset>
    </property>
    <property name="text">
     <string>Execute</string>
@@ -1317,8 +1313,8 @@
   </action>
   <action name="actionSave">
    <property name="icon">
-    <iconset>
-     <normaloff>save.png</normaloff>save.png</iconset>
+    <iconset resource="resources.qrc">
+     <normaloff>:/icons/save.png</normaloff>:/icons/save.png</iconset>
    </property>
    <property name="text">
     <string>Save</string>
@@ -1354,6 +1350,8 @@
    </property>
   </action>
  </widget>
- <resources/>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
  <connections/>
 </ui>

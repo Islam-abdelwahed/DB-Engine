@@ -3,31 +3,37 @@
 #include "Query.h"
 #include <vector>
 #include <string>
+#include <map>
 #include "Condition.h"
 #include "SortRule.h"
+using namespace std;
+
+using namespace std;
 
 struct JoinClause {
-    std::string tableName;
-    std::string leftColumn;  // column from main table
-    std::string rightColumn; // column from joined table
-    std::string joinType;    // "INNER", "LEFT", "RIGHT"
+    string tableName;
+    string leftColumn;  // column from main table
+    string rightColumn; // column from joined table
+    string joinType;    // "INNER", "LEFT", "RIGHT"
 };
 
 struct AggregateFunction {
-    std::string function;      // "SUM", "COUNT", "AVG", "MIN", "MAX"
-    std::string column;        // column name to aggregate
-    std::string alias;         // result column name (e.g., "AVG(age)")
+    string function;      // "SUM", "COUNT", "AVG", "MIN", "MAX"
+    string column;        // column name to aggregate
+    string alias;         // result column name (e.g., "AVG(age)")
 };
 
 class SelectQuery : public Query {
 public:
-    std::vector<std::string> columns;
-    std::vector<AggregateFunction> aggregates; // Aggregate functions in SELECT
-    std::string tableName;
+    vector<string> columns;
+    vector<AggregateFunction> aggregates; // Aggregate functions in SELECT
+    string tableName;
+    string tableAlias; // Alias for main table
+    map<string, string> tableAliases; // alias -> actual table name (for all tables)
     Condition where;
-    std::vector<std::string> groupBy;
-    std::vector<SortRule> orderBy;
-    std::vector<JoinClause> joins;
+    vector<string> groupBy;
+    vector<SortRule> orderBy;
+    vector<JoinClause> joins;
 
     SelectQuery() { type = QueryType::SELECT; }
 };

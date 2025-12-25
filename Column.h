@@ -2,16 +2,17 @@
 #pragma once
 #include <string>
 #include "Value.h"
-
+using namespace std;
 class Column {
 public:
-    std::string name;
+    string name;
     DataType type;
     bool isPrimaryKey;
+    bool isUnique;
     bool isForeignKey;
-    std::string foreignTable;
-    std::string foreignColumn;
+    string foreignTable;
+    string foreignColumn;
 
-    Column() : type(DataType::UNKNOWN), isPrimaryKey(false), isForeignKey(false) {}
-    Column(const std::string& n, DataType t) : name(n), type(t), isPrimaryKey(false), isForeignKey(false) {}
+    Column() : type(DataType::UNKNOWN), isPrimaryKey(false), isUnique(false), isForeignKey(false) {}
+    Column(const string& n, DataType t) : name(n), type(t), isPrimaryKey(false), isUnique(false), isForeignKey(false) {}
 };

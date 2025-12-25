@@ -2,10 +2,14 @@
 #pragma once
 #include "Query.h"
 #include <string>
+using namespace std;
+
+using namespace std;
 
 class DropTableQuery : public Query {
 public:
-    std::string tableName;
+    vector<string> tableNames;
+    bool ifExists;
 
-    DropTableQuery() { type = QueryType::DROP_TABLE; }
+    DropTableQuery() : ifExists(false) { type = QueryType::DROP_TABLE; }
 };

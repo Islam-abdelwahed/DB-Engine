@@ -1,14 +1,17 @@
 // src/Table.cpp
 #include "Table.h"
+#include "Database.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+
+using namespace std;
 
 Table::Table() {
     rebuildIndexMap();
 }
 
-Table::Table(const std::string& n, const std::vector<Column>& cols) : name(n), columns(cols) {
+Table::Table(const string& n, const vector<Column>& cols) : name(n), columns(cols) {
     rebuildIndexMap();
 }
 
@@ -19,18 +22,114 @@ void Table::rebuildIndexMap() {
     }
 }
 
-void Table::insertRow(const Row& r) {
-    if (r.values.size() != columns.size()) return; // Error handling
-    rows.push_back(r);
+bool Table::validatePrimaryKey(const Row& r) const {
+    // Check each column that is a primary key
+    for (size_t i = 0; i < columns.size(); ++i) {
+        if (columns[i].isPrimaryKey) {
+            // Check if this value already exists in existing rows
+            for (const auto& existingRow : rows) {
+                if (i < r.values.size() && i < existingRow.values.size()) {
+                    if (existingRow.values[i].data == r.values[i].data) {
+                        return false; // Duplicate primary key found
+                    }
+                }
+            }
+        }
+    }
+    return true; // No duplicates found
 }
 
-void Table::insertPartialRow(const std::vector<std::string>& columnNames, const Row& values) {
+bool Table::validateForeignKeys(const Row& r, Database* db) const {
+    if (!db) return true; // Can't validate without database reference
+    
+    // Check each column that is a foreign key
+    for (size_t i = 0; i < columns.size(); ++i) {
+        if (columns[i].isForeignKey) {
+            // Get the referenced table
+            Table* refTable = db->getTable(columns[i].foreignTable);
+            if (!refTable) {
+                return false; // Referenced table doesn't exist
+            }
+            
+            // Find the referenced column index
+            size_t refColIdx = refTable->getColumnIndex(columns[i].foreignColumn);
+            if (refColIdx == static_cast<size_t>(-1)) {
+                return false; // Referenced column doesn't exist
+            }
+            
+            // Check if the value exists in the referenced table
+            if (i < r.values.size()) {
+                const string& fkValue = r.values[i].data;
+                bool found = false;
+                
+                const auto& refRows = refTable->getRows();
+                for (const auto& refRow : refRows) {
+                    if (refColIdx < refRow.values.size()) {
+                        if (refRow.values[refColIdx].data == fkValue) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!found && !fkValue.empty()) {
+                    return false; // Foreign key value doesn't exist in referenced table
+                }
+            }
+        }
+    }
+    return true; // All foreign keys are valid
+}
+
+bool Table::validateUniqueConstraints(const Row& r, size_t excludeRowIdx) const {
+    // Check each column that has UNIQUE constraint
+    for (size_t i = 0; i < columns.size(); ++i) {
+        if (columns[i].isUnique || columns[i].isPrimaryKey) {
+            // Check if this value already exists in existing rows
+            for (size_t rowIdx = 0; rowIdx < rows.size(); ++rowIdx) {
+                // Skip the row being updated
+                if (rowIdx == excludeRowIdx) continue;
+                
+                if (i < r.values.size() && i < rows[rowIdx].values.size()) {
+                    // Skip NULL values (NULL is unique)
+                    if (r.values[i].isNull || rows[rowIdx].values[i].isNull) {
+                        continue;
+                    }
+                    
+                    if (rows[rowIdx].values[i].data == r.values[i].data) {
+                        return false; // Duplicate unique value found
+                    }
+                }
+            }
+        }
+    }
+    return true; // No duplicates found
+}
+
+bool Table::insertRow(const Row& r, Database* db) {
+    if (r.values.size() != columns.size()) return false; // Error handling
+    
+    // Validate unique constraints (including primary key)
+    if (!validateUniqueConstraints(r, static_cast<size_t>(-1))) {
+        return false; // Duplicate unique/primary key
+    }
+    
+    // Validate foreign key constraints
+    if (!validateForeignKeys(r, db)) {
+        return false; // Foreign key violation
+    }
+    
+    rows.push_back(r);
+    return true;
+}
+
+bool Table::insertPartialRow(const vector<string>& columnNames, const Row& values, Database* db) {
     Row fullRow;
     fullRow.values.resize(columns.size());
     
-    // Initialize all values as empty strings with proper types
+    // Initialize all values as NULL with proper types
     for (size_t i = 0; i < columns.size(); ++i) {
-        fullRow.values[i] = Value(columns[i].type, "");
+        fullRow.values[i] = Value::createNull(columns[i].type);
     }
     
     // Fill in specified columns
@@ -41,10 +140,21 @@ void Table::insertPartialRow(const std::vector<std::string>& columnNames, const 
         }
     }
     
+    // Validate unique constraints (including primary key)
+    if (!validateUniqueConstraints(fullRow, static_cast<size_t>(-1))) {
+        return false; // Duplicate unique/primary key
+    }
+    
+    // Validate foreign key constraints
+    if (!validateForeignKeys(fullRow, db)) {
+        return false; // Foreign key violation
+    }
+    
     rows.push_back(fullRow);
+    return true;
 }
 
-size_t Table::getColumnIndex(const std::string& columnName) const {
+size_t Table::getColumnIndex(const string& columnName) const {
     auto it = columnIndexMap.find(columnName);
     if (it != columnIndexMap.end()) {
         return it->second;
@@ -52,8 +162,8 @@ size_t Table::getColumnIndex(const std::string& columnName) const {
     return static_cast<size_t>(-1); // Not found
 }
 
-std::vector<Row> Table::selectRows(const Condition& c) const {
-    std::vector<Row> result;
+vector<Row> Table::selectRows(const Condition& c) const {
+    vector<Row> result;
     for (const auto& row : rows) {
         if (c.evaluate(row, columns)) {
             result.push_back(row);
@@ -62,46 +172,79 @@ std::vector<Row> Table::selectRows(const Condition& c) const {
     return result;
 }
 
-void Table::updateRows(const Condition& c, const std::map<std::string, Value>& nv) {
-    for (auto& row : rows) {
-        if (c.evaluate(row, columns)) {
+bool Table::updateRows(const Condition& c, const map<string, Value>& nv, Database* db) {
+    // First, collect rows that match the condition and prepare updated versions
+    vector<size_t> matchingIndices;
+    vector<Row> updatedRows;
+    
+    for (size_t idx = 0; idx < rows.size(); ++idx) {
+        if (c.evaluate(rows[idx], columns)) {
+            matchingIndices.push_back(idx);
+            Row updatedRow = rows[idx];
+            
+            // Apply updates
             for (const auto& pair : nv) {
                 auto it = columnIndexMap.find(pair.first);
                 if (it != columnIndexMap.end()) {
-                    row.values[it->second] = pair.second;
+                    updatedRow.values[it->second] = pair.second;
                 }
             }
+            
+            updatedRows.push_back(updatedRow);
         }
     }
+    
+    // Validate all updated rows
+    for (size_t i = 0; i < updatedRows.size(); ++i) {
+        const Row& updatedRow = updatedRows[i];
+        size_t originalIdx = matchingIndices[i];
+        
+        // Check unique constraints (including primary key)
+        if (!validateUniqueConstraints(updatedRow, originalIdx)) {
+            return false; // Duplicate unique/primary key
+        }
+        
+        // Validate foreign keys
+        if (!validateForeignKeys(updatedRow, db)) {
+            return false; // Foreign key violation
+        }
+    }
+    
+    // If all validations pass, apply the updates
+    for (size_t i = 0; i < matchingIndices.size(); ++i) {
+        rows[matchingIndices[i]] = updatedRows[i];
+    }
+    
+    return true;
 }
 
 void Table::deleteRows(const Condition& c) {
-    rows.erase(std::remove_if(rows.begin(), rows.end(), [&](const Row& row) {
+    rows.erase(remove_if(rows.begin(), rows.end(), [&](const Row& row) {
         return c.evaluate(row, columns);
     }), rows.end());
 }
 
-void Table::loadFromCSV(const std::string& filePath) {
-    std::ifstream file(filePath);
+void Table::loadFromCSV(const string& filePath) {
+    ifstream file(filePath);
     if (!file.is_open()) return;
 
-    std::string line;
+    string line;
     // Read column names
-    if (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string colName;
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string colName;
         columns.clear();
-        while (std::getline(ss, colName, ',')) {
+        while (getline(ss, colName, ',')) {
             columns.emplace_back(colName, DataType::STRING); // Assume STRING for now
         }
     }
 
     // Read types if present (current code has types in second line)
-    if (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string typeStr;
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string typeStr;
         size_t idx = 0;
-        while (std::getline(ss, typeStr, ',') && idx < columns.size()) {
+        while (getline(ss, typeStr, ',') && idx < columns.size()) {
             if (typeStr == "INT") columns[idx].type = DataType::INTEGER;
             else if (typeStr == "VARCHAR") columns[idx].type = DataType::VARCHAR;
             else if (typeStr == "FLOAT") columns[idx].type = DataType::FLOAT;
@@ -111,18 +254,78 @@ void Table::loadFromCSV(const std::string& filePath) {
         }
     }
 
+    // Read primary key flags
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string pkFlag;
+        size_t idx = 0;
+        while (getline(ss, pkFlag, ',') && idx < columns.size()) {
+            columns[idx].isPrimaryKey = (pkFlag == "1");
+            ++idx;
+        }
+    }
+
+    // Read unique flags
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string uniqueFlag;
+        size_t idx = 0;
+        while (getline(ss, uniqueFlag, ',') && idx < columns.size()) {
+            columns[idx].isUnique = (uniqueFlag == "1");
+            ++idx;
+        }
+    }
+
+    // Read foreign key flags
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string fkFlag;
+        size_t idx = 0;
+        while (getline(ss, fkFlag, ',') && idx < columns.size()) {
+            columns[idx].isForeignKey = (fkFlag == "1");
+            ++idx;
+        }
+    }
+
+    // Read foreign table names
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string fTable;
+        size_t idx = 0;
+        while (getline(ss, fTable, ',') && idx < columns.size()) {
+            columns[idx].foreignTable = fTable;
+            ++idx;
+        }
+    }
+
+    // Read foreign column names
+    if (getline(file, line)) {
+        stringstream ss(line);
+        string fColumn;
+        size_t idx = 0;
+        while (getline(ss, fColumn, ',') && idx < columns.size()) {
+            columns[idx].foreignColumn = fColumn;
+            ++idx;
+        }
+    }
+
     rebuildIndexMap();
 
     // Read rows
     rows.clear();
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string valStr;
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string valStr;
         Row row;
         size_t idx = 0;
-        while (std::getline(ss, valStr, ',')) {
+        while (getline(ss, valStr, ',')) {
             if (idx < columns.size()) {
-                row.values.emplace_back(columns[idx].type, valStr);
+                // Check if value is "null" (case-insensitive)
+                if (valStr == "null" || valStr == "NULL") {
+                    row.values.push_back(Value::createNull(columns[idx].type));
+                } else {
+                    row.values.emplace_back(columns[idx].type, valStr);
+                }
             }
             ++idx;
         }
@@ -130,8 +333,8 @@ void Table::loadFromCSV(const std::string& filePath) {
     }
 }
 
-void Table::saveToCSV(const std::string& filePath) const {
-    std::ofstream file(filePath);
+void Table::saveToCSV(const string& filePath) const {
+    ofstream file(filePath);
     if (!file.is_open()) return;
 
     // Write column names
@@ -143,7 +346,7 @@ void Table::saveToCSV(const std::string& filePath) const {
 
     // Write types
     for (size_t i = 0; i < columns.size(); ++i) {
-        std::string typeStr;
+        string typeStr;
         switch (columns[i].type) {
             case DataType::INTEGER: typeStr = "INT"; break;
             case DataType::VARCHAR: typeStr = "VARCHAR"; break;
@@ -156,10 +359,50 @@ void Table::saveToCSV(const std::string& filePath) const {
     }
     file << "\n";
 
+    // Write primary key flags
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << (columns[i].isPrimaryKey ? "1" : "0");
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write unique flags
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << (columns[i].isUnique ? "1" : "0");
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write foreign key flags
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << (columns[i].isForeignKey ? "1" : "0");
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write foreign table names
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << columns[i].foreignTable;
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
+    // Write foreign column names
+    for (size_t i = 0; i < columns.size(); ++i) {
+        file << columns[i].foreignColumn;
+        if (i < columns.size() - 1) file << ",";
+    }
+    file << "\n";
+
     // Write rows
     for (const auto& row : rows) {
         for (size_t i = 0; i < row.values.size(); ++i) {
-            file << row.values[i].data;
+            // Write "null" for NULL values
+            if (row.values[i].isNull) {
+                file << "null";
+            } else {
+                file << row.values[i].data;
+            }
             if (i < row.values.size() - 1) file << ",";
         }
         file << "\n";
