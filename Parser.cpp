@@ -338,6 +338,13 @@ Query* Parser::parse(const string& sqlText) {
 
         // Parse JOIN clauses
         size_t currentPos = fromEnd;
+        string upperTableRef = toUpper(q->tableAlias.empty() ? q->tableName : q->tableAlias);
+        size_t tableRefPos = upperQuery.find(upperTableRef, fromPos);
+        if (tableRefPos != string::npos) {
+            currentPos = tableRefPos + upperTableRef.length();
+        } else {
+            currentPos = fromPos + 4;  // Fallback to after "FROM "
+        }
         while (joinPos != string::npos && joinPos >= currentPos) {
             JoinClause join;
             // Determine join type
