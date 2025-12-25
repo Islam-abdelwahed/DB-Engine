@@ -170,10 +170,31 @@ Condition parseCondition(const string& wherePart) {
     c.logicalOp = LogicalOperator::NONE;
     
     string opStr = "="; // Default
-    size_t opPos = wherePart.find("!=");
+    size_t opPos = string::npos;
+    
+    // Check for two-character operators first
+    opPos = wherePart.find("!=");
     if (opPos != string::npos) {
         opStr = "!=";
     } else {
+        opPos = wherePart.find("<>");
+        if (opPos != string::npos) {
+            opStr = "<>";
+        } else {
+            opPos = wherePart.find(">=");
+            if (opPos != string::npos) {
+                opStr = ">=";
+            } else {
+                opPos = wherePart.find("<=");
+                if (opPos != string::npos) {
+                    opStr = "<=";
+                }
+            }
+        }
+    }
+    
+    // If no two-character operator found, check for single-character operators
+    if (opPos == string::npos) {
         opPos = wherePart.find('=');
         if (opPos != string::npos) {
             opStr = "=";
