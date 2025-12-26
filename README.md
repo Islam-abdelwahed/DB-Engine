@@ -91,6 +91,7 @@ A lightweight, SQL-based database management system built with C++ and Qt, featu
   - Quick table inspection
   - Visual database structure
 
+![image](./assets/img.png)
 ## Architecture
 
 The DB-Engine follows a modular architecture with clear separation of concerns:
